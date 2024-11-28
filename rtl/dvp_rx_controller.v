@@ -92,6 +92,12 @@ module dvp_rx_controller
     
     );
     
+    dvp_config #(
+    
+    ) dvp_configuration (
+        
+    );
+    
     pixel_fifo #(
     
     ) pixel_fifo (
