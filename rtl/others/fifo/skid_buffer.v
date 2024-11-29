@@ -340,5 +340,56 @@ generate
         assign fwd_valid_o  = bwd_valid_i;
         assign bwd_ready_o  = fwd_ready_i;
     end
+    else if(SBUF_TYPE == 5) begin   : HALF_REGISTERED
+        // Internal signal declaration
+        // -- wire
+        wire                    bwd_hsk;
+        wire                    fwd_hsk;
+        wire                    full;
+        // -- reg
+        reg [DATA_WIDTH-1:0]    buffer;
+        reg                     fwd_vld;
+        reg                     wr_ptr;
+        reg                     rd_ptr;
+        
+        // Combination logic
+        assign fwd_data_o   = buffer;
+        assign fwd_valid_o  = fwd_vld;
+        assign bwd_ready_o  = fwd_hsk | (~full);
+        assign bwd_hsk      = bwd_valid_i & bwd_ready_o; 
+        assign fwd_hsk      = fwd_valid_o & fwd_ready_i; 
+        assign full         = wr_ptr^rd_ptr;
+        
+        // Flip-flop
+        always @(posedge clk) begin
+            if(bwd_hsk) begin
+                buffer <= bwd_data_i;
+            end
+        end
+        always @(posedge clk or negedge rst_n) begin
+            if(~rst_n) begin
+                fwd_vld <= 1'b0;
+            end
+            else if(fwd_hsk | bwd_hsk) begin
+                fwd_vld <= bwd_hsk;
+            end
+        end
+        always @(posedge clk or negedge rst_n) begin
+            if(~rst_n) begin
+                wr_ptr <= 1'b0;
+            end
+            else if(bwd_hsk) begin
+                wr_ptr <= ~wr_ptr;
+            end
+        end
+        always @(posedge clk or negedge rst_n) begin
+            if(~rst_n) begin
+                rd_ptr <= 1'b0;
+            end
+            else if(fwd_hsk) begin
+                rd_ptr <= ~rd_ptr;
+            end
+        end
+    end
 endgenerate
 endmodule

@@ -1,8 +1,14 @@
+// Address region
+//      Register name           |       Adress
+// -----------------------------|----------------
+// DVP STATUS REG               |   32'h4000_0000
+// SCALER CONFIG REG            |   32'h4000_0004
+// PIXEL MEMORY BASE ADDRESS    |   32'h4000_0008
 module dvp_config
 #(
     // AXI4 Interface
     parameter BASE_ADDR         = 32'h4000_0000,    // Memory mapping - BASE
-    parameter CONF_OFFSET       = 8'd4,             // Memory mapping - OFFSET
+    parameter CONF_OFFSET       = 32'h04,             // Memory mapping - OFFSET
     parameter DATA_W            = 32,
     parameter ADDR_W            = 32,
     parameter MST_ID_W          = 5,
@@ -10,7 +16,7 @@ module dvp_config
     parameter TRANS_DATA_SIZE_W = 3,
     parameter TRANS_RESP_W      = 2,
     // DVP Configuration
-    parameter CONF_ADDR_W       = 1,
+    parameter CONF_ADDR_W       = 2,
     parameter CONF_DATA_W       = 32
 )
 (   
@@ -47,7 +53,11 @@ module dvp_config
     output                      m_arready_o,
     // -- -- R channel 
     output  [DATA_W-1:0]        m_rdata_o,
-    output                      m_rvalid_o
+    output                      m_rvalid_o,
+    // -- -- Configuration 
+    output  [CONF_DATA_W-1:0]   dvp_stat_o,
+    output  [CONF_DATA_W-1:0]   scaler_conf_o,
+    output  [CONF_DATA_W-1:0]   pxl_mem_base_o
 );
     // Local parameters 
     localparam CONF_ADDR_NUM    = CONF_ADDR_W<<1;
@@ -87,8 +97,6 @@ module dvp_config
     wire                        fwd_w_vld;
     wire                        fwd_w_rdy;
     // -- -- Config function
-    wire [DATA_W-1:0]           dvp_config_reg;
-    wire [DATA_W-1:0]           scaler_config_reg;
     wire [CONF_ADDR_NUM-1:0]    awaddr_map_vld;
     wire                        config_wr_en;
     // -- reg
@@ -148,7 +156,7 @@ module dvp_config
         .bwd_valid_i(m_arvalid_i), 
         .fwd_ready_i(bwd_r_rdy), 
         .fwd_data_o (fwd_ar_info),
-        .bwd_ready_o(m_awready_o), 
+        .bwd_ready_o(m_arready_o), 
         .fwd_valid_o(fwd_ar_vld)
     );
     // -- R channel buffer 
@@ -167,6 +175,9 @@ module dvp_config
     );
     
     // Combination logic
+    assign dvp_stat_o       = ip_config_reg[8'h00];
+    assign scaler_conf_o    = ip_config_reg[8'h01];
+    assign pxl_mem_base_o   = ip_config_reg[8'h02];
     generate 
     for(conf_idx = 0; conf_idx < CONF_ADDR_NUM; conf_idx = conf_idx + 1) begin
         assign awaddr_map_vld[conf_idx] = ~|(fwd_awaddr ^ (BASE_ADDR+conf_idx*CONF_OFFSET));

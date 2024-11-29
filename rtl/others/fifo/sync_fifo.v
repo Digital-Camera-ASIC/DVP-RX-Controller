@@ -2,15 +2,17 @@ module sync_fifo
 #(
     // FIFO configuration
     parameter FIFO_TYPE     = 0,
-    parameter DATA_WIDTH    = 8,
+    parameter DATA_WIDTH    = 32,
     parameter FIFO_DEPTH    = 32,
+    // For Concatenating FIFO
+    parameter IN_DATA_WIDTH = DATA_WIDTH,
     // Do not configure
     parameter ADDR_WIDTH    = $clog2(FIFO_DEPTH)
 )
 (
     input                               clk,
     
-    input           [DATA_WIDTH - 1:0]  data_i,
+    input           [IN_DATA_WIDTH-1:0] data_i,
     output  wire    [DATA_WIDTH-1:0]    data_o,
     
     input                               wr_valid_i,
@@ -246,6 +248,69 @@ else if(FIFO_TYPE == 0) begin : HALF_FLOP
             rd_ready <= ~empty_nxt;
         end
     end
+end
+else if(FIFO_TYPE == 3) begin : CONCAT_FIFO
+    // Local parameter
+    localparam CAT_NUM      = DATA_WIDTH/IN_DATA_WIDTH;
+    localparam CAT_NUM_W    = $clog2(CAT_NUM);
+    
+    // Internal variables
+    genvar sml_idx;
+    
+    // Internal signal
+    // -- wire
+    wire                    wr_hsk;
+    wire                    rd_hsk;
+    wire                    sml_full;
+    // -- reg 
+    reg [IN_DATA_WIDTH-1:0] buffer  [0:CAT_NUM-1];
+    reg [CAT_NUM_W-1:0]     sml_cnt;
+    reg                     wr_ptr;
+    reg                     rd_ptr;
+    
+    // Combination logic
+    assign wr_ready_o   = (~(wr_ptr^rd_ptr)) | rd_valid_i;
+    assign rd_ready_o   = (wr_ptr^rd_ptr);
+    assign empty_o      = ~rd_ready_o;
+    assign full_o       = ~wr_ready_o;
+    assign wr_hsk       = wr_valid_i & wr_ready_o;
+    assign rd_hsk       = rd_valid_i & rd_ready_o;
+    assign sml_full     = ~|(sml_cnt ^ (CAT_NUM-1));
+    for(sml_idx = 0; sml_idx < CAT_NUM; sml_idx = sml_idx + 1) begin
+        assign data_o[IN_DATA_WIDTH*(sml_idx+1)-1-:IN_DATA_WIDTH] = buffer[sml_idx];
+    end
+    
+    // Flip-flop
+    always @(posedge clk) begin
+        if(wr_hsk) begin
+            buffer[sml_cnt] <= data_i;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            wr_ptr <= 1'b0;
+        end
+        else if(wr_hsk & sml_full) begin
+            wr_ptr <= ~wr_ptr;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            rd_ptr <= 1'b0;
+        end
+        else if(rd_hsk) begin
+            rd_ptr <= ~rd_ptr;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            sml_cnt <= {CAT_NUM_W{1'b0}};
+        end
+        else begin
+            sml_cnt <= sml_cnt + wr_hsk;
+        end
+    end
+    
 end
 endgenerate
 endmodule

@@ -76,43 +76,64 @@ module dvp_rx_controller
 );
     dvp_camera_controller #(
     
-    ) dvp_camera_controller (
-    
+    ) dcc (
+        .clk            (),
+        .rst_n          (),
+        .dcr_cam_cfg_i  (),
+        .dvp_xclk_o     (),
+        .dvp_pwdn_o     ()
     );
     
     dvp_pclk_sync #(
     
-    ) dvp_pclk_synchronizer (
-    
+    ) dps (
+        .clk            (),
+        .rst_n          (),
+        .dvp_pclk_i     (),
+        .pf_pclk_sync_o ()
     );
     
     dvp_state_machine #(
     
-    ) dvp_rx_state_machine (
-    
+    ) dsm (
+        .clk            (),
+        .rst_n          (),
+        .pxl_info_i     (),
+        .pxl_info_vld_i (),
+        .dcr_cam_start_i(),
+        .rgb_pxl_rdy_i  (),
+        .pxl_info_rdy_o (),
+        .rgb_pxl_o      (),
+        .rgb_pxl_vld_o  ()
     );
     
     dvp_config #(
     
-    ) dvp_configuration (
+    ) dcr (
         
     );
     
     pixel_fifo #(
     
-    ) pixel_fifo (
+    ) pf (
     
     );
     
     pixel_gray_scale #(
     
-    ) pixel_gray_scale (
+    ) pgs (
     
     );
     
     pixel_downscaler_fifo #(
     
-    ) pixel_downscaler_fifo (
+    ) pdf (
+    
+    );
+    
+    pixel_axi4_tx #(
+    
+    ) pat (
     
     );
 endmodule
