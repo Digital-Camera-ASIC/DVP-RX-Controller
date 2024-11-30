@@ -1,0 +1,1 @@
+./../tb/dvp_rx_ctrl_tb.sv

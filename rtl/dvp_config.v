@@ -175,7 +175,7 @@ module dvp_config
     );
     
     // Combination logic
-    assign dvp_stat_o       = ip_config_reg[8'h00];
+    assign dvp_conf_o       = ip_config_reg[8'h00];
     assign scaler_conf_o    = ip_config_reg[8'h01];
     assign pxl_mem_base_o   = ip_config_reg[8'h02];
     generate 

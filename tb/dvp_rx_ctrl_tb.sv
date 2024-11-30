@@ -5,25 +5,26 @@
 `define RST_DLY_START   3
 `define RST_DUR         9
 
+`define END_TIME        5000000
+
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
 `define DVP_PCLK_DLY    1.25
 
-module dvp_rx_ctrl_tb;
-    // AXI configuration
-    localparam DATA_W            = 32;
-    localparam ADDR_W            = 32;
-    localparam MST_ID_W          = 5;
-    localparam TRANS_DATA_LEN_W  = 8;
-    localparam TRANS_DATA_SIZE_W = 3;
-    localparam TRANS_RESP_W      = 2;
-    // DVP configuration
-    localparam DVP_DATA_W        = 8;
-    localparam PXL_INFO_W        = DVP_DATA_W + 1 + 1;   // FIFO_W =  VSYNC + HSYNC + PIXEL_W
-    localparam RGB_PXL_W         = 16;
-    localparam GS_PXL_W          = 8;
+// AXI configuration
+localparam DATA_W            = 32;
+localparam ADDR_W            = 32;
+localparam MST_ID_W          = 5;
+localparam TRANS_DATA_LEN_W  = 8;
+localparam TRANS_DATA_SIZE_W = 3;
+localparam TRANS_RESP_W      = 2;
+// DVP configuration
+localparam DVP_DATA_W        = 8;
+localparam PXL_INFO_W        = DVP_DATA_W + 1 + 1;   // FIFO_W =  VSYNC + HSYNC + PIXEL_W
+localparam RGB_PXL_W         = 16;
+localparam GS_PXL_W          = 8;
     
-    
+module dvp_rx_controller_tb;
     // Input declaration
     logic                           clk;
     logic                           rst_n;
@@ -127,7 +128,6 @@ module dvp_rx_ctrl_tb;
     end
     
     initial begin
-        #(`RST_DLY_START + `RST_DUR + 1);
         forever #(`DUT_CLK_PERIOD/2) clk <= ~clk;
     end
     
@@ -137,10 +137,31 @@ module dvp_rx_ctrl_tb;
         forever #(`DVP_CLK_PERIOD/2) dvp_pclk_i <= ~dvp_pclk_i;
     end
     
+    initial begin   // Configure register
+        #(`RST_DLY_START + `RST_DUR + 1);
+        fork 
+            begin   : AW_chn
+                m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
+                m_awvalid_i <= 1'b0;
+            end
+            begin   : W_chn
+                m_w_transfer(.m_wdata(32'hFF));
+                m_wvalid_i <= 1'b0;
+            end
+        join_none
+    end
+    
     initial begin
         dvp_driver();
     end 
     
+    initial begin
+        #(`END_TIME) $finish;
+    end
+    
+    int pclk_cnt                    = 0;
+    int dvp_st                      = 0;
+    int tx_cnt                      = 0;
     task automatic dvp_driver();
         // Important note: 
         //      - Data and Control signal in DVP are changed in FALLING edge of PCLK
@@ -158,10 +179,8 @@ module dvp_rx_ctrl_tb;
         localparam TX_ST                = 6;
         localparam POST_TXN             = 7;
         localparam EOF_ST               = 8;
-        int dvp_st                      = IDLE_ST;
-        int pclk_cnt                    = 0;
-        int tx_cnt                      = 0;
         int stall_cnt                   = 0;
+//        int dvp_st                      = IDLE_ST;
         while(1'b1) begin
             stall_cnt = $urandom_range(10, 20);
             repeat(stall_cnt) begin
@@ -238,12 +257,10 @@ module dvp_rx_ctrl_tb;
                                 // Update state
                                 dvp_st      = TX_ST;
                                 // Set up pclk stall
-                                // -- Next stall = 10*t_line - 80*t_p - 40*t_p - 19*t_p = 10*(784*t_p) - 80*t_p - 40*t_p - 19*t_p = 10*(784*(2*t_pclk)) - 80*(2*t_pclk) - 40*(2*t_pclk) - 19*(2*t_pclk)
-                                tx_cnt      = 0;
                                 // Control signal
                                 dvp_href_i  <= 1'b1;
                                 // Data signal
-                                dvp_d_i     <= tx_cnt;
+                                dvp_d_i     <= tx_cnt%32;
                             end
                         end
                         // TODO: Transfer pixel
@@ -251,6 +268,8 @@ module dvp_rx_ctrl_tb;
                     TX_ST: begin
                         // TODO: Transfer pixel
                         tx_cnt = tx_cnt + 1;
+                        // Data signal
+                        dvp_d_i     <= tx_cnt%32;
                         if(tx_cnt%640 == 0) begin
                             // Update state
                             dvp_st      = PRE_HSYNC_FALL_ST;
@@ -276,12 +295,13 @@ module dvp_rx_ctrl_tb;
                     EOF_ST: begin
                         if(pclk_cnt == 0) begin
                             // Update state
-                            dvp_st      = EOF_ST;
+                            dvp_st      = IDLE_ST;
                             // Set up pclk stall
                             // -- Next stall = 3*t_line = 17*(784*t_p) = 3*(784*(2*t_pclk))
-                            pclk_cnt    = 3*784*2;
+                            pclk_cnt    = 0;
                             // Control signal
                             dvp_vsync_i <= 1'b0;
+                            break;
                         end
                     end
                 endcase
@@ -290,6 +310,32 @@ module dvp_rx_ctrl_tb;
                 pclk_cnt = pclk_cnt - 1;
             end
         end
+    endtask
+    task automatic m_aw_transfer(
+        input [MST_ID_W-1:0]    m_awid,
+        input [ADDR_W-1:0]      m_awaddr
+    );
+        aclk_cl;
+        m_awid_i            <= m_awid;
+        m_awaddr_i          <= m_awaddr;
+        m_awvalid_i         <= 1'b1;
+        // Handshake occur
+        wait(m_awready_o == 1'b1); #0.1;
+        aclk_cl;
+    endtask
+    task automatic m_w_transfer (
+        input [DATA_W-1:0]      m_wdata
+    );
+        aclk_cl;
+        m_wdata_i           <= m_wdata;
+        m_wvalid_i          <= 1'b1;
+        // Handshake occur
+        wait(m_wready_o == 1'b1); #0.1;
+        aclk_cl;
+    endtask
+    task automatic aclk_cl;
+        @(posedge clk);
+        #0.05; 
     endtask
     task automatic pclk_cl;
         @(negedge dvp_pclk_i);

@@ -50,7 +50,7 @@ module pixel_downscaler_fifo
     sync_fifo #(
         .FIFO_TYPE  (1),        // Non-registered output -> If VIOLATED timing path -> Set it to "2"
         .DATA_WIDTH (GS_PXL_W),
-        .FIFO_DEPTH (COL_NUM/2)
+        .FIFO_DEPTH (1<<$clog2(COL_NUM/2))
     ) frist_pixel_fifo (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -70,7 +70,7 @@ module pixel_downscaler_fifo
     sync_fifo #(
         .FIFO_TYPE  (1),        // Non-registered output -> If VIOLATED timing path -> Set it to "2"
         .DATA_WIDTH (GS_PXL_W),
-        .FIFO_DEPTH (COL_NUM/2)
+        .FIFO_DEPTH (1<<$clog2(COL_NUM/2))
     ) second_pixel_fifo (
         .clk            (clk),
         .rst_n          (rst_n),
