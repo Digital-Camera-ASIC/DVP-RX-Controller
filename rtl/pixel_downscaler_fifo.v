@@ -17,7 +17,6 @@ module pixel_downscaler_fifo
     input                   dsm_pxl_vld_i,
     // -- Pixel AXI4 Master TX
     input                   pat_rdy_i,
-    input                   pat_w_rdy_i,
     // Output declaration
     // -- DVP State machine
     output                  dsm_pxl_rdy_o,

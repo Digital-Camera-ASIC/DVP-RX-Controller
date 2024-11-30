@@ -21,7 +21,7 @@ module dvp_state_machine
     // -- Pixel FIFO
     output                      pxl_info_rdy_o,
     // -- Gray-scale 
-    output  [GS_PXL_W-1:0]      rgb_pxl_o,
+    output  [RGB_PXL_W-1:0]     rgb_pxl_o,
     output                      rgb_pxl_vld_o
 );
     // Local parameter 

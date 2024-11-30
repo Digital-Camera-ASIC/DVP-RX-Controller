@@ -55,7 +55,7 @@ module dvp_config
     output  [DATA_W-1:0]        m_rdata_o,
     output                      m_rvalid_o,
     // -- -- Configuration 
-    output  [CONF_DATA_W-1:0]   dvp_stat_o,
+    output  [CONF_DATA_W-1:0]   dvp_conf_o,
     output  [CONF_DATA_W-1:0]   scaler_conf_o,
     output  [CONF_DATA_W-1:0]   pxl_mem_base_o
 );

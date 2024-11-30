@@ -82,6 +82,7 @@ module pixel_axi4_tx
         .full_o         (),
         .almost_empty_o (),
         .almost_full_o  (),
+        .counter        (),
         .rst_n          (rst_n)
     );
     
@@ -92,6 +93,8 @@ module pixel_axi4_tx
     reg                         s_aw_rd_ptr;
     reg                         s_aw_wr_ptr;
     assign s_awvalid_o  = s_aw_rd_ptr ^ s_aw_wr_ptr;
+    assign s_wlast_o    = ~|(tx_cnt^(TX_PER_TXN-1));
+    assign s_bready_o   = 1'b1;
     assign s_aw_hsk     = s_awvalid_o & s_awready_i;
     assign s_w_hsk      = s_wvalid_o & s_wready_i;
     always @(*) begin

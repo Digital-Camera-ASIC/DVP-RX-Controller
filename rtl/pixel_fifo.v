@@ -17,8 +17,8 @@ module pixel_fifo
     input                       dvp_href_i,
     input                       dvp_vsync_i,
     input                       dvp_hsync_i,
-    // -- Clock synchronizer
-    input                       cs_pclk_sync_i,
+    // -- DVP PCLK synchronizer
+    input                       dps_pclk_sync_i,
     // -- DVP RX State machine
     input                       dsm_pxl_rdy_i,
     // Output declaration
@@ -64,7 +64,7 @@ module pixel_fifo
     ) vsync_det (
         .clk    (clk),
         .rst_n  (rst_n),
-        .en     (cs_pclk_sync_i),
+        .en     (dps_pclk_sync_i),
         .i      (dvp_vsync_i),
         .o      (vsync_rising)
     );
@@ -74,13 +74,13 @@ module pixel_fifo
     ) hsync_det (
         .clk    (clk),
         .rst_n  (rst_n),
-        .en     (cs_pclk_sync_i),
+        .en     (dps_pclk_sync_i),
         .i      (dvp_hsync_i),
         .o      (hsync_rising)
     );
     // Combination logic
     assign ff_data_in   = {vsync_flag_q, hsync_flag_q, dvp_d_i};
-    assign dvp_d_vld    = dvp_href_i & cs_pclk_sync_i;
+    assign dvp_d_vld    = dvp_href_i & dps_pclk_sync_i;
     always @* begin
         vsync_flag_d = vsync_flag_q;
         if(vsync_rising) begin
