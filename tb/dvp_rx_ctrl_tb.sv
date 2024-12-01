@@ -5,7 +5,7 @@
 `define RST_DLY_START   3
 `define RST_DUR         9
 
-`define END_TIME        5000000
+`define END_TIME        10000000
 
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
@@ -243,7 +243,7 @@ module dvp_rx_controller_tb;
                     end
                     PRE_TX_ST: begin
                         if(pclk_cnt == 0) begin
-                            if(tx_cnt == (640*480)) begin // Frame receiving is completed
+                            if(tx_cnt == (640*480*2)) begin // Frame receiving is completed
                                 // Update state
                                 dvp_st      = POST_TXN;
                                 // Set up pclk stall
@@ -270,7 +270,7 @@ module dvp_rx_controller_tb;
                         tx_cnt = tx_cnt + 1;
                         // Data signal
                         dvp_d_i     <= tx_cnt%32;
-                        if(tx_cnt%640 == 0) begin
+                        if(tx_cnt%(640*2) == 0) begin
                             // Update state
                             dvp_st      = PRE_HSYNC_FALL_ST;
                             // Set up pclk stall

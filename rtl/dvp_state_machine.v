@@ -1,3 +1,4 @@
+// This state machine is a gate for data collection and error detection
 module dvp_state_machine
 #(
     parameter DVP_DATA_W        = 8,
@@ -31,21 +32,37 @@ module dvp_state_machine
     // -- wire
     wire    [DVP_DATA_W-1:0]    dvp_pxl_data;
     reg                         dvp_st_d;
-    wire                        pf_hsk;
-    wire    [RGB_PXL_W-1:0]     rgb_pxl_d;
+    wire                        pxl_info_vld;
+    wire                        pxl_info_rdy;
     // -- reg
     reg                         dvp_st_q;
-    reg                         rgb_pxl_comp_q;
-    reg     [RGB_PXL_W-1:0]     rgb_pxl_q;
+    
+    // Internal module
+    sync_fifo 
+    #(
+        .FIFO_TYPE      (3),        // Concat FIFO
+        .DATA_WIDTH     (RGB_PXL_W),
+        .IN_DATA_WIDTH  (DVP_DATA_W)
+    ) concat_fifo (
+        .clk            (clk),
+        .data_i         (dvp_pxl_data),
+        .data_o         (rgb_pxl_o),
+        .wr_valid_i     (pxl_info_vld),
+        .wr_ready_o     (pxl_info_rdy),
+        .rd_valid_i     (rgb_pxl_rdy_i),
+        .rd_ready_o     (rgb_pxl_vld_o),
+        .empty_o        (),
+        .full_o         (),
+        .almost_empty_o (),
+        .almost_full_o  (),
+        .counter        (),
+        .rst_n          (rst_n)
+    );
     
     // Combination logic
-    assign rgb_pxl_o = rgb_pxl_q;
-    assign rgb_pxl_vld_o = rgb_pxl_comp_q;
-    assign pxl_info_rdy_o = (dvp_st_q == WORK_ST) & ((~rgb_pxl_comp_q) | (rgb_pxl_comp_q & rgb_pxl_rdy_i));
+    assign pxl_info_rdy_o = pxl_info_vld & (~|(dvp_st_q^WORK_ST));
+    assign pxl_info_vld = pxl_info_vld_i & (~|(dvp_st_q^WORK_ST));
     assign dvp_pxl_data =  pxl_info_i[DVP_DATA_W-1:0];
-    assign pf_hsk = pxl_info_vld_i & pxl_info_rdy_o;
-    assign rgb_pxl_d[DVP_DATA_W-1:0] = (~rgb_pxl_comp_q) ? dvp_pxl_data : rgb_pxl_q[DVP_DATA_W-1:0];
-    assign rgb_pxl_d[RGB_PXL_W-1-:DVP_DATA_W] = (rgb_pxl_comp_q) ? dvp_pxl_data : rgb_pxl_q[RGB_PXL_W-1-:DVP_DATA_W];
     always @* begin
         dvp_st_d = dvp_st_q;
         case(dvp_st_q) 
@@ -55,10 +72,10 @@ module dvp_state_machine
                 end
             end
             WORK_ST: begin
-                // TODO: Updated in next versions
+                // Updated in next versions 
                 // - Check VSYNC & HSYNC -> Error Interrupt
+                // - Collect signle frame mode
                 // - Stall mode
-                // - etc
             end
         endcase
     end
@@ -70,22 +87,6 @@ module dvp_state_machine
         end
         else begin
             dvp_st_q <= dvp_st_d;
-        end
-    end
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rgb_pxl_comp_q <= 1'b0;
-        end
-        else if(pf_hsk) begin
-            rgb_pxl_comp_q <= ~rgb_pxl_comp_q;
-        end
-    end
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rgb_pxl_q <= {RGB_PXL_W{1'b0}};
-        end
-        else if(pf_hsk) begin
-            rgb_pxl_q <= rgb_pxl_d;
         end
     end
 endmodule
