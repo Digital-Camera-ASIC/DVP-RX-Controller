@@ -5,7 +5,7 @@
 `define RST_DLY_START   3
 `define RST_DUR         9
 
-`define END_TIME        10000000
+`define END_TIME        12000000
 
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
@@ -106,13 +106,13 @@ module dvp_rx_controller_tb;
         dvp_vsync_i <= 0;
         dvp_hsync_i <= 0;
         dvp_pclk_i  <= 0;
-        // AXI4 Pixel TX ìnterface
+        // AXI4 Pixel TX ï¿½nterface
         s_awready_i <= 1;
         s_wready_i  <= 1;
         s_bid_i     <= 0;
         s_bresp_i   <= 0;
         s_bvalid_i  <= 0;
-        // AXI4 Configuration ìnterface
+        // AXI4 Configuration ï¿½nterface
         m_awid_i    <= 0;
         m_awaddr_i  <= 0;
         m_awvalid_i <= 0;
@@ -122,6 +122,7 @@ module dvp_rx_controller_tb;
         m_arid_i    <= 0;
         m_araddr_i  <= 0;
         m_arvalid_i <= 0; 
+        m_rready_i  <= 1;
         
         #(`RST_DLY_START)   rst_n <= 0;
         #(`RST_DUR)         rst_n <= 1;
@@ -142,11 +143,24 @@ module dvp_rx_controller_tb;
         fork 
             begin   : AW_chn
                 m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
+                m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0008));
+                aclk_cl;
                 m_awvalid_i <= 1'b0;
             end
             begin   : W_chn
                 m_w_transfer(.m_wdata(32'hFF));
+                m_w_transfer(.m_wdata(32'h8000_0000));
+                aclk_cl;
                 m_wvalid_i <= 1'b0;
+            end
+            begin   : AR_chn
+                repeat(10) begin
+                    aclk_cl;
+                end
+                m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0008));
+                m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0001));
+                aclk_cl;
+                m_arvalid_i <= 1'b0;
             end
         join_none
     end
@@ -321,7 +335,6 @@ module dvp_rx_controller_tb;
         m_awvalid_i         <= 1'b1;
         // Handshake occur
         wait(m_awready_o == 1'b1); #0.1;
-        aclk_cl;
     endtask
     task automatic m_w_transfer (
         input [DATA_W-1:0]      m_wdata
@@ -331,14 +344,24 @@ module dvp_rx_controller_tb;
         m_wvalid_i          <= 1'b1;
         // Handshake occur
         wait(m_wready_o == 1'b1); #0.1;
+    endtask
+    task automatic m_ar_transfer(
+        input [MST_ID_W-1:0]    m_arid,
+        input [ADDR_W-1:0]      m_araddr
+    );
         aclk_cl;
+        m_arid_i            <= m_arid;
+        m_araddr_i          <= m_araddr;
+        m_arvalid_i         <= 1'b1;
+        // Handshake occur
+        wait(m_arready_o == 1'b1); #0.1;
     endtask
     task automatic aclk_cl;
         @(posedge clk);
         #0.05; 
     endtask
     task automatic pclk_cl;
-        @(negedge dvp_pclk_i);
+        @(negedge dvp_xclk_o);
         #(`DVP_PCLK_DLY); 
     endtask
 endmodule

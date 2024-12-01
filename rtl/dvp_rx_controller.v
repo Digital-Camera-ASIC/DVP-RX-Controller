@@ -158,6 +158,7 @@ module dvp_rx_controller
         .m_bvalid_o     (m_bvalid_o ),
         .m_arready_o    (m_arready_o),
         .m_rdata_o      (m_rdata_o  ),
+        .m_rresp_o      (m_rresp_o  ),
         .m_rvalid_o     (m_rvalid_o ),
         .dvp_conf_o     (dvp_cam_conf),
         .scaler_conf_o  (),

@@ -53,6 +53,7 @@ module dvp_config
     output                      m_arready_o,
     // -- -- R channel 
     output  [DATA_W-1:0]        m_rdata_o,
+    output  [TRANS_RESP_W-1:0]  m_rresp_o,
     output                      m_rvalid_o,
     // -- -- Configuration 
     output  [CONF_DATA_W-1:0]   dvp_conf_o,
@@ -61,11 +62,12 @@ module dvp_config
 );
     // Local parameters 
     localparam CONF_ADDR_NUM    = CONF_ADDR_W<<1;
+    localparam CONF_OFFSET_W    = $clog2(CONF_OFFSET);
     localparam AW_INFO_W        = MST_ID_W + ADDR_W;
     localparam W_INFO_W         = DATA_W;
     localparam B_INFO_W         = TRANS_RESP_W;
     localparam AR_INFO_W        = MST_ID_W + ADDR_W;
-    localparam R_INFO_W         = DATA_W;
+    localparam R_INFO_W         = DATA_W + TRANS_RESP_W;
     
     // Internal variables 
     genvar conf_idx;
@@ -74,8 +76,11 @@ module dvp_config
     // -- -- AXI4 interface
     wire [AW_INFO_W-1:0]        bwd_aw_info;
     
-    wire [W_INFO_W-1:0]         bwd_rdata;
+    wire [R_INFO_W-1:0]         bwd_r_info;
+    wire [DATA_W-1:0]           bwd_rdata;
+    wire [TRANS_RESP_W-1:0]     bwd_rresp;
     wire                        bwd_r_rdy;
+    wire [R_INFO_W-1:0]         fwd_r_info;
     
     wire [B_INFO_W-1:0]         bwd_b_info;
     wire                        bwd_b_vld;
@@ -98,6 +103,7 @@ module dvp_config
     wire                        fwd_w_rdy;
     // -- -- Config function
     wire [CONF_ADDR_NUM-1:0]    awaddr_map_vld;
+    wire [CONF_ADDR_NUM-1:0]    araddr_map_vld;
     wire                        config_wr_en;
     // -- reg
     reg  [DATA_W-1:0]           ip_config_reg       [0:CONF_ADDR_NUM-1];
@@ -166,10 +172,10 @@ module dvp_config
     ) r_chn_buf (
         .clk        (clk),
         .rst_n      (rst_n),
-        .bwd_data_i (bwd_rdata),
+        .bwd_data_i (bwd_r_info),
         .bwd_valid_i(fwd_ar_vld), 
         .fwd_ready_i(m_rready_i), 
-        .fwd_data_o (m_rdata_o),
+        .fwd_data_o (fwd_r_info),
         .bwd_ready_o(bwd_r_rdy), 
         .fwd_valid_o(m_rvalid_o)
     );
@@ -178,9 +184,11 @@ module dvp_config
     assign dvp_conf_o       = ip_config_reg[8'h00];
     assign scaler_conf_o    = ip_config_reg[8'h01];
     assign pxl_mem_base_o   = ip_config_reg[8'h02];
+    assign {m_rresp_o, m_rdata_o} = fwd_r_info;
     generate 
     for(conf_idx = 0; conf_idx < CONF_ADDR_NUM; conf_idx = conf_idx + 1) begin
         assign awaddr_map_vld[conf_idx] = ~|(fwd_awaddr ^ (BASE_ADDR+conf_idx*CONF_OFFSET));
+        assign araddr_map_vld[conf_idx] = ~|(fwd_araddr ^ (BASE_ADDR+conf_idx*CONF_OFFSET));
     end
     endgenerate
     assign config_wr_en = fwd_w_vld & fwd_aw_vld;
@@ -188,8 +196,11 @@ module dvp_config
     assign fwd_aw_rdy   = config_wr_en & bwd_b_rdy;
     assign fwd_w_rdy    = config_wr_en & bwd_b_rdy;
     assign bwd_aw_info  = {m_awid_i, m_awaddr_i};
+    assign bwd_ar_info  = {m_arid_i, m_araddr_i};
     assign bwd_b_info   = (|awaddr_map_vld) ? 2'b00 : 2'b11;    // 2'b00: SUCCESS || 2'b11: Wrong mapping
-    assign bwd_rdata    = ip_config_reg[fwd_araddr[CONF_ADDR_W+CONF_OFFSET-1-:CONF_ADDR_W]];
+    assign bwd_r_info   = {bwd_rresp, bwd_rdata};
+    assign bwd_rdata    = ip_config_reg[fwd_araddr[CONF_ADDR_W+CONF_OFFSET_W-1-:CONF_ADDR_W]];
+    assign bwd_rresp    = (|araddr_map_vld) ? 2'b00 : 2'b11;
     assign {fwd_arid, fwd_araddr} = fwd_ar_info;
     assign {fwd_awid, fwd_awaddr} = fwd_aw_info;
     // Flip-flop
