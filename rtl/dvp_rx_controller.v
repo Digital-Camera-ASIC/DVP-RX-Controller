@@ -1,7 +1,11 @@
 module dvp_rx_controller
 #(
     // AXI configuration
+    // -- For AXI4 Slave interface  (DVP Configuration)
     parameter DATA_W            = 32,
+    // -- For AXI4 Master interface (Pixel AXI4 TX)
+    parameter TX_DATA_W         = 256,
+    // -- Common
     parameter ADDR_W            = 32,
     parameter MST_ID_W          = 5,
     parameter TRANS_DATA_LEN_W  = 8,
@@ -58,7 +62,7 @@ module dvp_rx_controller
     output  [ADDR_W-1:0]            s_awaddr_o,
     output                          s_awvalid_o,
     // -- -- W channel
-    output  [DATA_W-1:0]            s_wdata_o,
+    output  [TX_DATA_W-1:0]         s_wdata_o,
     output                          s_wlast_o,
     output                          s_wvalid_o,
     // -- -- B channel

@@ -5,7 +5,7 @@
 `define RST_DLY_START   3
 `define RST_DUR         9
 
-`define END_TIME        12000000
+`define END_TIME        18000000
 
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
@@ -13,6 +13,7 @@
 
 // AXI configuration
 localparam DATA_W            = 32;
+localparam TX_DATA_W         = 256;
 localparam ADDR_W            = 32;
 localparam MST_ID_W          = 5;
 localparam TRANS_DATA_LEN_W  = 8;
@@ -69,7 +70,7 @@ module dvp_rx_controller_tb;
     logic  [ADDR_W-1:0]            s_awaddr_o;
     logic                          s_awvalid_o;
     // -- -- W channel
-    logic  [DATA_W-1:0]            s_wdata_o;
+    logic  [TX_DATA_W-1:0]         s_wdata_o;
     logic                          s_wlast_o;
     logic                          s_wvalid_o;
     // -- -- B channel
@@ -106,13 +107,13 @@ module dvp_rx_controller_tb;
         dvp_vsync_i <= 0;
         dvp_hsync_i <= 0;
         dvp_pclk_i  <= 0;
-        // AXI4 Pixel TX �nterface
+        // AXI4 Pixel TX interface
         s_awready_i <= 1;
         s_wready_i  <= 1;
         s_bid_i     <= 0;
         s_bresp_i   <= 0;
         s_bvalid_i  <= 0;
-        // AXI4 Configuration �nterface
+        // AXI4 Configuration interface
         m_awid_i    <= 0;
         m_awaddr_i  <= 0;
         m_awvalid_i <= 0;
@@ -132,10 +133,14 @@ module dvp_rx_controller_tb;
         forever #(`DUT_CLK_PERIOD/2) clk <= ~clk;
     end
     
-    initial begin
-        #(`RST_DLY_START + `RST_DUR + 1);
-        wait(dvp_pwdn_o == 1'b0); #0.1;
-        forever #(`DVP_CLK_PERIOD/2) dvp_pclk_i <= ~dvp_pclk_i;
+    // initial begin
+    //     #(`RST_DLY_START + `RST_DUR + 1);
+    //     wait(dvp_pwdn_o == 1'b0); #0.1;
+    //     forever #(`DVP_CLK_PERIOD/2) dvp_pclk_i <= ~dvp_pclk_i;
+    // end
+
+    always @(dvp_xclk_o) begin
+        #1; dvp_pclk_i <= dvp_xclk_o;
     end
     
     initial begin   // Configure register

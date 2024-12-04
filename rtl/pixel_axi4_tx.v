@@ -2,12 +2,12 @@ module pixel_axi4_tx
 #(
     // AXI4 Interface
     parameter MST_ID            = 5'h02,
-    parameter DATA_W            = 32,
+    parameter DATA_W            = 256,
     parameter ADDR_W            = 32,
     parameter MST_ID_W          = 5,
     parameter TRANS_DATA_SIZE_W = 3,
     parameter TRANS_RESP_W      = 2,
-    parameter TX_PER_TXN        = 19200, // number of transfers per transaction
+    parameter TX_PER_TXN        = 2400, // number of transfers per transaction
     // Pixel configuration
     parameter GS_PXL_W          = 8
 )
