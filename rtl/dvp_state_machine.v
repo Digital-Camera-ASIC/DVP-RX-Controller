@@ -60,7 +60,7 @@ module dvp_state_machine
     );
     
     // Combination logic
-    assign pxl_info_rdy_o = pxl_info_vld & (~|(dvp_st_q^WORK_ST));
+    assign pxl_info_rdy_o = pxl_info_rdy & (~|(dvp_st_q^WORK_ST));
     assign pxl_info_vld = pxl_info_vld_i & (~|(dvp_st_q^WORK_ST));
     assign dvp_pxl_data =  pxl_info_i[DVP_DATA_W-1:0];
     always @* begin

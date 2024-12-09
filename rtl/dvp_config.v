@@ -17,7 +17,7 @@ module dvp_config
     parameter TRANS_RESP_W      = 2,
     // DVP Configuration
     parameter CONF_ADDR_W       = 2,
-    parameter CONF_DATA_W       = 32
+    parameter CONF_DATA_W       = CONF_OFFSET*8     // Byte-access
 )
 (   
     // Input declaration
@@ -61,7 +61,7 @@ module dvp_config
     output  [CONF_DATA_W-1:0]   pxl_mem_base_o
 );
     // Local parameters 
-    localparam CONF_ADDR_NUM    = CONF_ADDR_W<<1;
+    localparam CONF_ADDR_NUM    = 1<<CONF_ADDR_W;
     localparam CONF_OFFSET_W    = $clog2(CONF_OFFSET);
     localparam AW_INFO_W        = MST_ID_W + ADDR_W;
     localparam W_INFO_W         = DATA_W;

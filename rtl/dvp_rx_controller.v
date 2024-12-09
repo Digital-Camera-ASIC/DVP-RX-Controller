@@ -2,20 +2,23 @@ module dvp_rx_controller
 #(
     // AXI configuration
     // -- For AXI4 Slave interface  (DVP Configuration)
-    parameter DATA_W            = 32,
+    parameter DATA_W                = 32,
     // -- For AXI4 Master interface (Pixel AXI4 TX)
-    parameter TX_DATA_W         = 256,
-    // -- Common
-    parameter ADDR_W            = 32,
-    parameter MST_ID_W          = 5,
-    parameter TRANS_DATA_LEN_W  = 8,
-    parameter TRANS_DATA_SIZE_W = 3,
-    parameter TRANS_RESP_W      = 2,
+    parameter TX_DATA_W             = 256,
+    // -- Common    
+    parameter ADDR_W                = 32,
+    parameter MST_ID_W              = 5,
+    parameter TRANS_DATA_LEN_W      = 8,
+    parameter TRANS_DATA_SIZE_W     = 3,
+    parameter TRANS_RESP_W          = 2,
+    // Memory Mapping
+    parameter IP_CONF_BASE_ADDR     = 32'h4000_0000,        // Memory mapping - BASE
+    parameter IP_CONF_OFFSET_ADDR   = 32'h04,               // Memory mapping - OFFSET
     // DVP configuration
-    parameter DVP_DATA_W        = 8,
-    parameter PXL_INFO_W        = DVP_DATA_W + 1 + 1,   // FIFO_W =  VSYNC + HSYNC + PIXEL_W
-    parameter RGB_PXL_W         = 16,
-    parameter GS_PXL_W          = 8
+    parameter DVP_DATA_W            = 8,
+    parameter PXL_INFO_W            = DVP_DATA_W + 1 + 1,   // FIFO_W =  VSYNC + HSYNC + PIXEL_W
+    parameter RGB_PXL_W             = 16,
+    parameter GS_PXL_W              = 8
 )
 (
     // Input declaration
@@ -142,7 +145,8 @@ module dvp_rx_controller
     );
     
     dvp_config #(
-    
+        .BASE_ADDR      (IP_CONF_BASE_ADDR),
+        .CONF_OFFSET    (IP_CONF_OFFSET_ADDR)
     ) dcr (
         .clk            (clk),
         .rst_n          (rst_n),
