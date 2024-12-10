@@ -127,7 +127,7 @@ module pixel_downscaler_fifo
         .counter        ()
     );
     // Combination logic
-    assign dsm_pxl_rdy_o    = pf_wr_rdy_map[{row_odd_d, col_ctn_d[0]}];
+    assign dsm_pxl_rdy_o    = pf_wr_rdy_map[{row_odd_q, col_ctn_q[0]}];
     assign pat_pxl_vld_o    = (pf_rd_rdy_map[0] & pf_rd_rdy_map[1] & pf_rd_rdy_map[2] & pf_rd_rdy_map[3]);
     assign pat_rdy          = pat_rdy_i;
     assign pat_hsk          = pat_pxl_vld_o & pat_rdy;
@@ -135,10 +135,10 @@ module pixel_downscaler_fifo
     assign col_last         = ~|(col_ctn_q^(COL_NUM - 1));
     assign col_ctn_d        = (col_last) ? {COL_CTN_W{1'b0}} : col_ctn_q + 1'b1;
     assign row_odd_d        = row_odd_q + col_last;
-    assign pf_wr_vld_map[0] = dsm_pxl_vld_i & ((~col_ctn_d[0]) & (~row_odd_d));
-    assign pf_wr_vld_map[1] = dsm_pxl_vld_i & (col_ctn_d[0]    & (~row_odd_d));
-    assign pf_wr_vld_map[2] = dsm_pxl_vld_i & ((~col_ctn_d[0]) & row_odd_d);
-    assign pf_wr_vld_map[3] = dsm_pxl_vld_i & (col_ctn_d[0]    & row_odd_d);
+    assign pf_wr_vld_map[0] = dsm_pxl_vld_i & ((~col_ctn_q[0]) & (~row_odd_q));
+    assign pf_wr_vld_map[1] = dsm_pxl_vld_i & (col_ctn_q[0]    & (~row_odd_q));
+    assign pf_wr_vld_map[2] = dsm_pxl_vld_i & ((~col_ctn_q[0]) & row_odd_q);
+    assign pf_wr_vld_map[3] = dsm_pxl_vld_i & (col_ctn_q[0]    & row_odd_q);
     generate
     if(DOWNSCALE_TYPE == 0) begin : AVG_POOL
         assign pat_pxl_o = (pf_data_o_map[0] + pf_data_o_map[1] + pf_data_o_map[2] + pf_data_o_map[3]) >> 2;
