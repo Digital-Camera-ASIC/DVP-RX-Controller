@@ -42,7 +42,8 @@ module dvp_state_machine
     #(
         .FIFO_TYPE      (3),        // Concat FIFO
         .DATA_WIDTH     (RGB_PXL_W),
-        .IN_DATA_WIDTH  (DVP_DATA_W)
+        .IN_DATA_WIDTH  (DVP_DATA_W),
+        .CONCAT_ORDER   ("MSB")
     ) concat_fifo (
         .clk            (clk),
         .data_i         (dvp_pxl_data),

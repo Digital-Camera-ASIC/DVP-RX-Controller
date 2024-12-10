@@ -1,32 +1,35 @@
 module sync_fifo
 #(
     // FIFO configuration
-    parameter FIFO_TYPE     = 0,
-    parameter DATA_WIDTH    = 32,
-    parameter FIFO_DEPTH    = 32,
+    parameter FIFO_TYPE         = 4,
+    parameter DATA_WIDTH        = 32,
+    parameter FIFO_DEPTH        = 32,
     // For Concatenating FIFO
-    parameter IN_DATA_WIDTH = DATA_WIDTH,
+    parameter IN_DATA_WIDTH     = DATA_WIDTH,
+    parameter OUT_DATA_WIDTH    = DATA_WIDTH,
+    // -- For CONCAT FIFO 
+    parameter CONCAT_ORDER      = "LSB",
     // Do not configure
-    parameter ADDR_WIDTH    = $clog2(FIFO_DEPTH)
+    parameter ADDR_WIDTH        = $clog2(FIFO_DEPTH)
 )
 (
-    input                               clk,
+    input                           clk,
     
-    input           [IN_DATA_WIDTH-1:0] data_i,
-    output  wire    [DATA_WIDTH-1:0]    data_o,
+    input   [IN_DATA_WIDTH-1:0]     data_i,
+    output  [OUT_DATA_WIDTH-1:0]    data_o,
     
-    input                               wr_valid_i,
-    input                               rd_valid_i,
+    input                           wr_valid_i,
+    input                           rd_valid_i,
     
-    output                              empty_o,
-    output                              full_o,
-    output                              wr_ready_o,     // Optional
-    output                              rd_ready_o,     // Optional
-    output  wire                        almost_empty_o, // Optional
-    output  wire                        almost_full_o,  // Optional
+    output                          empty_o,
+    output                          full_o,
+    output                          wr_ready_o,     // Optional
+    output                          rd_ready_o,     // Optional
+    output                          almost_empty_o, // Optional
+    output                          almost_full_o,  // Optional
     
-    output  [ADDR_WIDTH:0]              counter,        // Optional
-    input                               rst_n
+    output  [ADDR_WIDTH:0]          counter,        // Optional
+    input                           rst_n
 );
 // Internal variable declaration
 genvar addr;
@@ -251,7 +254,7 @@ else if(FIFO_TYPE == 0) begin : HALF_FLOP
 end
 else if(FIFO_TYPE == 3) begin : CONCAT_FIFO
     // Local parameter
-    localparam CAT_NUM      = DATA_WIDTH/IN_DATA_WIDTH;
+    localparam CAT_NUM      = OUT_DATA_WIDTH/IN_DATA_WIDTH;
     localparam CAT_NUM_W    = $clog2(CAT_NUM);
     
     // Internal variables
@@ -277,7 +280,12 @@ else if(FIFO_TYPE == 3) begin : CONCAT_FIFO
     assign rd_hsk       = rd_valid_i & rd_ready_o;
     assign sml_full     = ~|(sml_cnt ^ (CAT_NUM-1));
     for(sml_idx = 0; sml_idx < CAT_NUM; sml_idx = sml_idx + 1) begin
-        assign data_o[IN_DATA_WIDTH*(sml_idx+1)-1-:IN_DATA_WIDTH] = buffer[sml_idx];
+        if(CONCAT_ORDER == "LSB") begin
+            assign data_o[IN_DATA_WIDTH*(sml_idx+1)-1-:IN_DATA_WIDTH] = buffer[sml_idx];
+        end
+        else if(CONCAT_ORDER == "MSB") begin
+            assign data_o[IN_DATA_WIDTH*(sml_idx+1)-1-:IN_DATA_WIDTH] = buffer[CAT_NUM - 1 - sml_idx];
+        end
     end
     
     // Flip-flop
@@ -311,6 +319,66 @@ else if(FIFO_TYPE == 3) begin : CONCAT_FIFO
         end
     end
     
+end
+else if(FIFO_TYPE == 4) begin : DECONCAT_FIFO
+    // Internal variable
+    genvar sml_idx;
+    // Local parameter 
+    localparam CAT_NUM      = IN_DATA_WIDTH/OUT_DATA_WIDTH;
+    localparam CAT_NUM_W    = $clog2(CAT_NUM);
+    // Internal signal
+    // -- wire
+    wire                        wr_hsk;
+    wire                        rd_hsk;
+    wire [OUT_DATA_WIDTH-1:0]   data_map [0:CAT_NUM-1];    
+    wire                        buf_ocp;
+    // -- reg 
+    reg  [IN_DATA_WIDTH-1:0]    buffer;
+    reg  [CAT_NUM_W-1:0]        sml_cnt;
+    reg                         rd_ptr;
+    reg                         wr_ptr;
+    // Combination logic
+    assign data_o       = data_map[sml_cnt];
+    assign wr_ready_o   = (((~|(sml_cnt^(CAT_NUM-1))) & rd_hsk) | ((~|sml_cnt) & (~buf_ocp)));
+    assign rd_ready_o   = buf_ocp;
+    assign full_o       = ~wr_ready_o;
+    assign empty_o      = ~rd_ready_o;
+    assign buf_ocp      = wr_ptr ^ rd_ptr;
+    assign wr_hsk       = wr_valid_i & wr_ready_o;
+    assign rd_hsk       = rd_valid_i & rd_ready_o;
+    for(sml_idx = 0; sml_idx < CAT_NUM; sml_idx = sml_idx + 1) begin
+        assign data_map[sml_idx] = buffer[OUT_DATA_WIDTH*(sml_idx+1)-1-:OUT_DATA_WIDTH];
+    end
+    // Flip-flop
+    always @(posedge clk) begin
+        if(wr_hsk) begin
+            buffer <= data_i;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(~rst_n) begin
+            sml_cnt <= {CAT_NUM_W{1'b0}};
+        end
+        else begin
+            sml_cnt <= sml_cnt + rd_hsk;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(~rst_n) begin
+            wr_ptr <= 1'b0;
+        end
+        else begin
+            wr_ptr <= wr_ptr + wr_hsk;
+        end
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if(~rst_n) begin
+            rd_ptr <= 1'b0;
+        end
+        else begin
+            rd_ptr <= rd_ptr + (rd_hsk & (~|(sml_cnt^(CAT_NUM-1))));
+        end
+    end
 end
 endgenerate
 endmodule
