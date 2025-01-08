@@ -90,6 +90,7 @@ module dvp_rx_controller
     wire    [DATA_W-1:0]            dvp_cam_conf;
     wire    [ADDR_W-1:0]            pxl_mem_addr;
     wire                            dvp_cam_st;
+    wire                            dvp_cam_pwdn;
     wire                            pclk_sync;
     // PF -- DSM
     wire    [PXL_INFO_W-1:0]        pf_dsm_pxl_info;
@@ -109,8 +110,9 @@ module dvp_rx_controller
     wire                            pat_pdf_rdy;
     
     // Configuration register field
-    assign dvp_cam_st   = dvp_cam_conf[5'h07];
-    
+    assign dvp_cam_st   = dvp_cam_conf[5'h00];  // Start
+    assign dvp_cam_pwdn = dvp_cam_conf[5'h01];  // Power down
+
     dvp_camera_controller #(
     
     ) dcc (

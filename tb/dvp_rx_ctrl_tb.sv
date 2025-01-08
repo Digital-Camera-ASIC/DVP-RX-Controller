@@ -148,20 +148,29 @@ module dvp_rx_controller_tb;
         fork 
             begin   : AW_chn
                 m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
+                // Wait for 50 cycles
+                aclk_cls(50);
+                
+                m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
                 m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0008));
                 aclk_cl;
                 m_awvalid_i <= 1'b0;
             end
             begin   : W_chn
-                m_w_transfer(.m_wdata(32'hFF));
+                m_w_transfer(.m_wdata(32'h02));     // Set power down ON
+                // Wait for 50 cycles
+                aclk_cls(50);
+
+                m_w_transfer(.m_wdata(32'h01));     // Set power down OFF - Start the camera
                 m_w_transfer(.m_wdata(32'h8000_0000));
                 aclk_cl;
                 m_wvalid_i <= 1'b0;
             end
             begin   : AR_chn
-                repeat(10) begin
-                    aclk_cl;
-                end
+                // Wait for 60 cycles
+                aclk_cls(60);
+                
+                // Read register
                 m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0008));
                 m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0001));
                 aclk_cl;
@@ -365,6 +374,12 @@ module dvp_rx_controller_tb;
         @(posedge clk);
         #0.05; 
     endtask
+    task automatic aclk_cls(
+        input int n
+    );
+        repeat(n) aclk_cl;
+    endtask
+    
     task automatic pclk_cl;
         @(negedge dvp_xclk_o);
         #(`DVP_PCLK_DLY); 

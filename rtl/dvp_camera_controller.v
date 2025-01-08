@@ -21,7 +21,8 @@ module dvp_camera_controller
     localparam PRESC_CTN_W  = $clog2(PRES_CTN_MAX);
     // Internal signal
     // -- wire declaration
-    wire                        cam_start;      // camera start signal bit
+    wire                        cam_start;      // camera start bit
+    wire                        cam_pwdn;       // camera power down bit
     wire    [1:0]               cam_presc;      // Camera prescaler
     wire    [PRESC_CTN_W-1:0]   presc_ctn_d;
     wire                        presc_ctn_ex;   // Prescaler counter exceeded
@@ -33,8 +34,9 @@ module dvp_camera_controller
     // Combination logic
     // -- Output
     assign dvp_xclk_o   = xclk_q;
-    assign dvp_pwdn_o   = ~cam_start;
-    assign cam_start    = dcr_cam_cfg_i[7];
+    assign dvp_pwdn_o   = cam_pwdn;
+    assign cam_start    = dcr_cam_cfg_i[5'h00];
+    assign cam_pwdn     = dcr_cam_cfg_i[5'h01];
     assign cam_presc    = dcr_cam_cfg_i[1:0];
     assign presc_ctn_ex = (presc_ctn_q == PRES_CTN_MAX-1);
     assign xclk_toggle  = (presc_ctn_q == PRES_CTN_MAX/2 - 1);
