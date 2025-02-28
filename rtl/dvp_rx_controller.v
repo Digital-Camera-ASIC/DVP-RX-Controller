@@ -1,5 +1,9 @@
 module dvp_rx_controller
 #(
+    // System
+    parameter INTERNAL_CLK          = 125_000_000,
+    // Downscaler
+    parameter DOWNSCALE_TYPE        = 1,    // 0: AveragePooling || 1" MaxPooling
     // AXI configuration
     // -- For AXI4 Slave interface  (DVP Configuration)
     parameter DATA_W                = 32,
@@ -76,11 +80,13 @@ module dvp_rx_controller
     // -- -- W channel
     output                          m_wready_o,
     // -- -- B channel
+    output  [MST_ID_W-1:0]          m_bid_o,
     output  [TRANS_RESP_W-1:0]      m_bresp_o,
     output                          m_bvalid_o,
     // -- -- AR channel
     output                          m_arready_o,
-    // -- -- R channel
+    // -- -- R channel 
+    output  [MST_ID_W-1:0]          m_rid_o,
     output  [DATA_W-1:0]            m_rdata_o,
     output  [TRANS_RESP_W-1:0]      m_rresp_o,
     output                          m_rvalid_o
@@ -114,7 +120,8 @@ module dvp_rx_controller
     assign dvp_cam_pwdn = dvp_cam_conf[5'h01];  // Power down
 
     dvp_camera_controller #(
-    
+        .INTL_CLK_PERIOD(INTERNAL_CLK),
+        .DVP_CAM_CFG_W  (DATA_W)
     ) dcc (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -123,9 +130,7 @@ module dvp_rx_controller
         .dvp_pwdn_o     (dvp_pwdn_o)
     );
     
-    dvp_pclk_sync #(
-    
-    ) dps (
+    dvp_pclk_sync dps (
         .clk            (clk),
         .rst_n          (rst_n),
         .dvp_pclk_i     (dvp_pclk_i),
@@ -133,7 +138,10 @@ module dvp_rx_controller
     );
     
     dvp_state_machine #(
-    
+        .DVP_DATA_W     (DVP_DATA_W),
+        .PXL_INFO_W     (PXL_INFO_W),
+        .RGB_PXL_W      (RGB_PXL_W),
+        .GS_PXL_W       (GS_PXL_W)
     ) dsm (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -148,7 +156,13 @@ module dvp_rx_controller
     
     dvp_config #(
         .BASE_ADDR      (IP_CONF_BASE_ADDR),
-        .CONF_OFFSET    (IP_CONF_OFFSET_ADDR)
+        .CONF_OFFSET    (IP_CONF_OFFSET_ADDR),
+        .DATA_W         (DATA_W),
+        .ADDR_W         (ADDR_W),
+        .MST_ID_W       (MST_ID_W),
+        .TRANS_DATA_LEN_W(TRANS_DATA_LEN_W),
+        .TRANS_DATA_SIZE_W(TRANS_DATA_SIZE_W),
+        .TRANS_RESP_W   (TRANS_RESP_W)
     ) dcr (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -164,9 +178,11 @@ module dvp_rx_controller
         .m_rready_i     (m_rready_i ),
         .m_awready_o    (m_awready_o),
         .m_wready_o     (m_wready_o ),
+        .m_bid_o        (m_bid_o    ),
         .m_bresp_o      (m_bresp_o  ),
         .m_bvalid_o     (m_bvalid_o ),
         .m_arready_o    (m_arready_o),
+        .m_rid_o        (m_rid_o    ),
         .m_rdata_o      (m_rdata_o  ),
         .m_rresp_o      (m_rresp_o  ),
         .m_rvalid_o     (m_rvalid_o ),
@@ -176,7 +192,9 @@ module dvp_rx_controller
     );
     
     pixel_fifo #(
-    
+        .DVP_DATA_W     (DVP_DATA_W),
+        .PXL_INFO_W     (PXL_INFO_W),
+        .PXL_FIFO_D     (32)
     ) pf (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -192,7 +210,8 @@ module dvp_rx_controller
     );
     
     pixel_gray_scale #(
-    
+        .RGB_PXL_W      (RGB_PXL_W),
+        .GS_PXL_W       (GS_PXL_W)
     ) pgs (
         .rgb_pxl_i       (dsm_pgs_pxl),   
         .rgb_pxl_vld_i   (dsm_pgs_pxl_vld),
@@ -203,7 +222,8 @@ module dvp_rx_controller
     );
     
     pixel_downscaler_fifo #(
-    
+        .DOWNSCALE_TYPE (DOWNSCALE_TYPE),
+        .GS_PXL_W       (GS_PXL_W)
     ) pdf (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -216,7 +236,13 @@ module dvp_rx_controller
     );
     
     pixel_axi4_tx #(
-    
+        .MST_ID         ({MST_ID_W{1'b0}}),
+        .DATA_W         (TX_DATA_W),
+        .ADDR_W         (ADDR_W),
+        .MST_ID_W       (MST_ID_W),
+        .TRANS_DATA_SIZE_W(TRANS_DATA_SIZE_W),
+        .TRANS_RESP_W   (TRANS_RESP_W),
+        .TX_PER_TXN     ()
     ) pat (
         .clk            (clk),
         .rst_n          (rst_n),

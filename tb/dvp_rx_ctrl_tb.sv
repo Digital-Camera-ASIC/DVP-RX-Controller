@@ -5,7 +5,7 @@
 `define RST_DLY_START   3
 `define RST_DUR         9
 
-`define END_TIME        18000000
+`define END_TIME        6500000
 
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
@@ -81,18 +81,27 @@ module dvp_rx_controller_tb;
     // -- -- W channel
     logic                          m_wready_o;
     // -- -- B channel
+    logic  [MST_ID_W-1:0]          m_bid_o;
     logic  [TRANS_RESP_W-1:0]      m_bresp_o;
     logic                          m_bvalid_o;
     // -- -- AR channel
     logic                          m_arready_o;
-    // -- -- R channel
+    // -- -- R channel 
+    logic  [MST_ID_W-1:0]          m_rid_o;
     logic  [DATA_W-1:0]            m_rdata_o;
     logic  [TRANS_RESP_W-1:0]      m_rresp_o;
     logic                          m_rvalid_o;
     
     
+    reg [15:0]                     input_img [0:640*480-1];
+    reg [255:0]                    output_img[0:2400-1];
+
+    int pclk_cnt    = 0;
+    int dvp_st      = 0;
+    int tx_cnt      = 0;
+    int wdata_cnt   = 0;
     dvp_rx_controller #(
-    
+        .INTERNAL_CLK (50_000_000)
     ) dut (
         .*
     );
@@ -132,6 +141,10 @@ module dvp_rx_controller_tb;
     initial begin
         forever #(`DUT_CLK_PERIOD/2) clk <= ~clk;
     end
+
+    initial begin
+        $readmemh("L:/Projects/axi4_hog_accel/dvp_rx_controller/dvp_rx_controller/sim/testcase/tc0/input/img_txt.txt", input_img);
+    end
     
     // initial begin
     //     #(`RST_DLY_START + `RST_DUR + 1);
@@ -148,16 +161,20 @@ module dvp_rx_controller_tb;
         fork 
             begin   : AW_chn
                 m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
+                aclk_cl;
+                m_awvalid_i <= 1'b0;
                 // Wait for 50 cycles
                 aclk_cls(50);
                 
-                m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0000));
-                m_aw_transfer(.m_awid(5'h00), .m_awaddr(32'h4000_0008));
+                m_aw_transfer(.m_awid(5'h01), .m_awaddr(32'h4000_0000));
+                m_aw_transfer(.m_awid(5'h02), .m_awaddr(32'h4000_0008));
                 aclk_cl;
                 m_awvalid_i <= 1'b0;
             end
             begin   : W_chn
                 m_w_transfer(.m_wdata(32'h02));     // Set power down ON
+                aclk_cl;
+                m_wvalid_i <= 1'b0;
                 // Wait for 50 cycles
                 aclk_cls(50);
 
@@ -172,24 +189,37 @@ module dvp_rx_controller_tb;
                 
                 // Read register
                 m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0008));
-                m_ar_transfer(.m_arid(5'h00), .m_araddr(32'h4000_0001));
+                m_ar_transfer(.m_arid(5'h01), .m_araddr(32'h4000_0001));
                 aclk_cl;
                 m_arvalid_i <= 1'b0;
             end
         join_none
     end
-    
+    /* ------------ DVP Driver ------------ */
     initial begin
         dvp_driver();
     end 
+    /* ------------ DVP Driver ------------ */
+
+    /* ------------ AXI4 Monitor ------------ */
+    initial begin
+        while(1'b1) begin
+            wait((s_wvalid_o & s_wready_i) == 1'b1); #0.1; // Handshaking
+            output_img[wdata_cnt] = s_wdata_o;
+            wdata_cnt++;
+            if(wdata_cnt == 2400) begin
+                wdata_cnt = 0;
+                $writememh("L:/Projects/axi4_hog_accel/dvp_rx_controller/dvp_rx_controller/sim/testcase/tc0/output/img_txt.txt", output_img);
+            end
+            aclk_cl;
+        end
+    end
+    /* ------------ AXI4 Monitor ------------ */
     
     initial begin
         #(`END_TIME) $finish;
     end
-    
-    int pclk_cnt                    = 0;
-    int dvp_st                      = 0;
-    int tx_cnt                      = 0;
+
     task automatic dvp_driver();
         // Important note: 
         //      - Data and Control signal in DVP are changed in FALLING edge of PCLK
@@ -198,17 +228,16 @@ module dvp_rx_controller_tb;
         //          + T_hold        = 8ns
         //      -> Data will be stable befor RISING edge 
         //      -> (Delay time to sample data at RISING edge) < 8ns
-        localparam IDLE_ST              = 0;
-        localparam SOF_ST               = 1;
-        localparam PRE_TXN_ST           = 2;
-        localparam PRE_HSYNC_FALL_ST    = 3;
-        localparam HSYNC_FALL_ST        = 4;
-        localparam PRE_TX_ST            = 5;
-        localparam TX_ST                = 6;
-        localparam POST_TXN             = 7;
-        localparam EOF_ST               = 8;
+        localparam DVP_IDLE_ST          = 0;
+        localparam DVP_SOF_ST           = 1;
+        localparam DVP_PRE_TXN_ST       = 2;
+        localparam DVP_PRE_HSYNC_FALL_ST= 3;
+        localparam DVP_HSYNC_FALL_ST    = 4;
+        localparam DVP_PRE_TX_ST        = 5;
+        localparam DVP_TX_ST            = 6;
+        localparam DVP_POST_TXN         = 7;
+        localparam DVP_EOF_ST           = 8;
         int stall_cnt                   = 0;
-//        int dvp_st                      = IDLE_ST;
         while(1'b1) begin
             stall_cnt = $urandom_range(10, 20);
             repeat(stall_cnt) begin
@@ -216,129 +245,87 @@ module dvp_rx_controller_tb;
             end
             while (1'b1) begin
                 case(dvp_st)
-                    IDLE_ST: begin
-                        // Update state
-                        dvp_st      = SOF_ST;
-                        // Set up pclk stall
-                        // -- Next stall = 3*t_line = 17*(784*t_p) = 3*(784*(2*t_pclk))
+                    DVP_IDLE_ST: begin
+                        dvp_st      = DVP_SOF_ST;
                         pclk_cnt    = 3*784*2;
-                        // Control signal
                         dvp_vsync_i <= 1'b1;
                     end
-                    SOF_ST: begin
-                        if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = PRE_TXN_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 17*t_line - 80*t_p - 40*t_p - 19*t_p = 17*(784*t_p) - 80*t_p - 40*t_p - 19*t_p = 17*(784*(2*t_pclk)) - 80*(2*t_pclk) - 40*(2*t_pclk) - 19*(2*t_pclk)
-                            pclk_cnt    = 17*784*2 - 80*2 - 40*2 - 19*2;
-                            // Control signal
-                            dvp_vsync_i <= 1'b0;
-                        end
+                    DVP_SOF_ST: begin
+                    if(pclk_cnt == 0) begin
+                        dvp_st      = DVP_PRE_TXN_ST;
+                        pclk_cnt    = 17*784*2 - 80*2 - 40*2 - 19*2;
+                        dvp_vsync_i <= 1'b0;
                     end
-                    PRE_TXN_ST: begin
-                        if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = PRE_HSYNC_FALL_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 19*t_p = 19*t_p = 19*(2*t_pclk)
-                            pclk_cnt    = 19*2;
-                            // Control signal
-                            dvp_hsync_i <= 1'b1;
-                        end
                     end
-                    PRE_HSYNC_FALL_ST: begin
-                        if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = HSYNC_FALL_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 19*t_p = 19*t_p = 19*(2*t_pclk)
-                            pclk_cnt    = 80*2;
-                            // Control signal
-                            dvp_hsync_i <= 1'b0;
-                        end
+                    DVP_PRE_TXN_ST: begin
+                    if(pclk_cnt == 0) begin
+                        dvp_st      = DVP_PRE_HSYNC_FALL_ST;
+                        pclk_cnt    = 19*2;
+                        dvp_hsync_i <= 1'b1;
                     end
-                    HSYNC_FALL_ST: begin
+                    end
+                    DVP_PRE_HSYNC_FALL_ST: begin
+                    if(pclk_cnt == 0) begin
+                        dvp_st      = DVP_HSYNC_FALL_ST;
+                        pclk_cnt    = 80*2;
+                        dvp_hsync_i <= 1'b0;
+                    end
+                    end
+                    DVP_HSYNC_FALL_ST: begin
                         if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = PRE_TX_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 19*t_p = 19*t_p = 19*(2*t_pclk)
+                            dvp_st      = DVP_PRE_TX_ST;
                             pclk_cnt    = 40*2;
-                            // Control signal
                             dvp_hsync_i <= 1'b1;
                         end
                     end
-                    PRE_TX_ST: begin
+                    DVP_PRE_TX_ST: begin
                         if(pclk_cnt == 0) begin
-                            if(tx_cnt == (640*480*2)) begin // Frame receiving is completed
-                                // Update state
-                                dvp_st      = POST_TXN;
-                                // Set up pclk stall
-                                // -- Next stall = 10*t_line - 80*t_p - 40*t_p - 19*t_p = 10*(784*t_p) - 80*t_p - 40*t_p - 19*t_p = 10*(784*(2*t_pclk)) - 80*(2*t_pclk) - 40*(2*t_pclk) - 19*(2*t_pclk)
+                            if(tx_cnt == (640*480*2)) begin
+                                dvp_st      = DVP_POST_TXN;
                                 pclk_cnt    = 10*784*2 - 80*2 - 40*2 - 19*2;
                                 tx_cnt      = 0;
-                                // Control signal
-//                                dvp_hsync_i <= 1'b1;
                             end
                             else begin
-                                // Update state
-                                dvp_st      = TX_ST;
-                                // Set up pclk stall
-                                // Control signal
+                                dvp_st      = DVP_TX_ST;
                                 dvp_href_i  <= 1'b1;
-                                // Data signal
-                                dvp_d_i     <= tx_cnt%32;
+                                // dvp_d_i     <= tx_cnt%32;
+                                dvp_d_i     <= (tx_cnt%2 == 0) ? input_img[tx_cnt/2][15:8] : input_img[tx_cnt/2][7:0];
+                                
                             end
                         end
-                        // TODO: Transfer pixel
                     end
-                    TX_ST: begin
-                        // TODO: Transfer pixel
+                    DVP_TX_ST: begin
                         tx_cnt = tx_cnt + 1;
-                        // Data signal
-                        dvp_d_i     <= tx_cnt%32;
+                        dvp_d_i <= (tx_cnt%2 == 0) ? input_img[tx_cnt/2][15:8] : input_img[tx_cnt/2][7:0];
                         if(tx_cnt%(640*2) == 0) begin
-                            // Update state
-                            dvp_st      = PRE_HSYNC_FALL_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 19*t_p = 19*t_p = 19*(2*t_pclk)
+                            dvp_st      = DVP_PRE_HSYNC_FALL_ST;
                             pclk_cnt    = 19*2;
-                            // Control signal
                             dvp_hsync_i <= 1'b1;
                             dvp_href_i  <= 1'b0;
                         end
                     end
-                    POST_TXN: begin
+                    DVP_POST_TXN: begin
                         if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = EOF_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 3*t_line = 17*(784*t_p) = 3*(784*(2*t_pclk))
+                            dvp_st      = DVP_EOF_ST;
                             pclk_cnt    = 3*784*2;
-                            // Control signal
                             dvp_vsync_i <= 1'b1;
                         end
                     end
-                    EOF_ST: begin
+                    DVP_EOF_ST: begin
                         if(pclk_cnt == 0) begin
-                            // Update state
-                            dvp_st      = IDLE_ST;
-                            // Set up pclk stall
-                            // -- Next stall = 3*t_line = 17*(784*t_p) = 3*(784*(2*t_pclk))
+                            dvp_st      = DVP_IDLE_ST;
                             pclk_cnt    = 0;
-                            // Control signal
                             dvp_vsync_i <= 1'b0;
                             break;
                         end
                     end
                 endcase
-                // Synchronize FSM 
                 pclk_cl;
                 pclk_cnt = pclk_cnt - 1;
             end
         end
     endtask
+
     task automatic m_aw_transfer(
         input [MST_ID_W-1:0]    m_awid,
         input [ADDR_W-1:0]      m_awaddr
