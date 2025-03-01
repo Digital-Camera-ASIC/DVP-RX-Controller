@@ -1,23 +1,21 @@
 // RGB565 -> GRAY 
-module pixel_gray_scale
+module drc_pxl_grayscaler
 #(
-    // Pixel data configuration
+    // Do not configure
     parameter RGB_PXL_W = 16,
     parameter GS_PXL_W  = 8
 )
 (
-    // Input declaration
     // -- RGB
     input   [RGB_PXL_W-1:0] rgb_pxl_i,
+    input                   rgb_pxl_last_i, // Last pixel of the frame
     input                   rgb_pxl_vld_i,
-    // -- Gray
-    input                   gs_pxl_rdy_i,
-    // Output declaration
-    // -- RGB
     output                  rgb_pxl_rdy_o,
     // -- Gray
     output  [GS_PXL_W-1:0]  gs_pxl_o,
-    output                  gs_pxl_vld_o
+    output                  gs_pxl_last_o,  // Last pixel of the frame
+    output                  gs_pxl_vld_o,
+    input                   gs_pxl_rdy_i
 );
     // Localparam
     localparam R_DAT_W      = 5;
@@ -34,6 +32,7 @@ module pixel_gray_scale
     wire    [STD_G_DAT_W-1:0]   g_data;
     wire    [STD_B_DAT_W-1:0]   b_data;
     // Combination logic
+    assign gs_pxl_last_o    = rgb_pxl_last_i;
     assign gs_pxl_vld_o     = rgb_pxl_vld_i;
     assign rgb_pxl_rdy_o    = gs_pxl_rdy_i;
     assign r_data           = {rgb_pxl_i[R_MSB_IDX-:R_DAT_W], 3'b000};

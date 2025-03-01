@@ -12,9 +12,9 @@ module dvp_rx_controller
     // -- Common    
     parameter ADDR_W                = 32,
     parameter MST_ID_W              = 5,
-    parameter TRANS_DATA_LEN_W      = 8,
-    parameter TRANS_DATA_SIZE_W     = 3,
-    parameter TRANS_RESP_W          = 2,
+    parameter ATX_LEN_W             = 8,
+    parameter ATX_SIZE_W            = 3,
+    parameter ATX_RESP_W            = 2,
     // Memory Mapping
     parameter IP_CONF_BASE_ADDR     = 32'h4000_0000,        // Memory mapping - BASE
     parameter IP_CONF_OFFSET_ADDR   = 32'h04,               // Memory mapping - OFFSET
@@ -25,71 +25,62 @@ module dvp_rx_controller
     parameter GS_PXL_W              = 8
 )
 (
-    // Input declaration
     input                           clk,
     input                           rst_n,
-    // -- DVP RX interface
+    // DVP RX interface
     input   [DVP_DATA_W-1:0]        dvp_d_i,
     input                           dvp_href_i,
     input                           dvp_vsync_i,
     input                           dvp_hsync_i,
     input                           dvp_pclk_i,
-    // -- AXI4 interface (pixel transfer)
-    // -- -- AW channel
-    input                           s_awready_i,
-    // -- -- W channel
-    input                           s_wready_i,
-    // -- -- B channel
-    input   [MST_ID_W-1:0]          s_bid_i,
-    input   [TRANS_RESP_W-1:0]      s_bresp_i,
-    input                           s_bvalid_i,
-    // -- AXI4 interface (configuration)
-    // -- -- AW channel
-    input   [MST_ID_W-1:0]          m_awid_i,
-    input   [ADDR_W-1:0]            m_awaddr_i,
-    input                           m_awvalid_i,
-    // -- -- W channel
-    input   [DATA_W-1:0]            m_wdata_i,
-    input                           m_wvalid_i,
-    // -- -- B channel
-    input                           m_bready_i,
-    // -- -- AR channel
-    input   [MST_ID_W-1:0]          m_arid_i,
-    input   [ADDR_W-1:0]            m_araddr_i,
-    input                           m_arvalid_i,
-    // -- -- R channel
-    input                           m_rready_i,
-    // Output declaration
-    // -- DVP RX interface
     output                          dvp_xclk_o,
     output                          dvp_pwdn_o,
-    // -- AXI4 interface (pixels transfer)
-    // -- -- AW channel
+    // AXI4 interface (configuration)
+    // -- AW channel
+    input   [MST_ID_W-1:0]          m_awid_i,
+    input   [ADDR_W-1:0]            m_awaddr_i,
+    input   [1:0]                   m_awburst_i,
+    input   [ATX_LEN_W-1:0]         m_awlen_i,
+    input                           m_awvalid_i,
+    output                          m_awready_o,
+    // -- W channel
+    input   [DATA_W-1:0]            m_wdata_i,
+    input                           m_wvalid_i,
+    output                          m_wready_o,
+    // -- B channel
+    output  [MST_ID_W-1:0]          m_bid_o,
+    output  [ATX_RESP_W-1:0]        m_bresp_o,
+    output                          m_bvalid_o,
+    input                           m_bready_i,
+    // -- AR channel
+    input   [MST_ID_W-1:0]          m_arid_i,
+    input   [ADDR_W-1:0]            m_araddr_i,
+    input   [1:0]                   m_arburst_i,
+    input   [ATX_LEN_W-1:0]         m_arlen_i,
+    input                           m_arvalid_i,
+    // -- R channel
+    output  [MST_ID_W-1:0]          m_rid_o,
+    output  [DATA_W-1:0]            m_rdata_o,
+    output  [ATX_RESP_W-1:0]        m_rresp_o,
+    output                          m_rvalid_o,
+    input                           m_rready_i,
+    // AXI4 interface (pixels streaming)
+    // -- AW channel
     output  [MST_ID_W-1:0]          s_awid_o,
     output  [ADDR_W-1:0]            s_awaddr_o,
     output                          s_awvalid_o,
-    // -- -- W channel
+    input                           s_awready_i,
+    output                          m_arready_o,
+    // -- W channel
     output  [TX_DATA_W-1:0]         s_wdata_o,
     output                          s_wlast_o,
     output                          s_wvalid_o,
-    // -- -- B channel
-    output                          s_bready_o,
-    // -- AXI4 interface (configuration)
-    // -- -- AW channel
-    output                          m_awready_o,
-    // -- -- W channel
-    output                          m_wready_o,
-    // -- -- B channel
-    output  [MST_ID_W-1:0]          m_bid_o,
-    output  [TRANS_RESP_W-1:0]      m_bresp_o,
-    output                          m_bvalid_o,
-    // -- -- AR channel
-    output                          m_arready_o,
-    // -- -- R channel 
-    output  [MST_ID_W-1:0]          m_rid_o,
-    output  [DATA_W-1:0]            m_rdata_o,
-    output  [TRANS_RESP_W-1:0]      m_rresp_o,
-    output                          m_rvalid_o
+    input                           s_wready_i,
+    // -- B channel
+    input   [MST_ID_W-1:0]          s_bid_i,
+    input   [ATX_RESP_W-1:0]        s_bresp_i,
+    input                           s_bvalid_i,
+    output                          s_bready_o
 );
     // Internal signal
     // -- Configuration line
@@ -153,6 +144,68 @@ module dvp_rx_controller
         .rgb_pxl_o      (dsm_pgs_pxl),
         .rgb_pxl_vld_o  (dsm_pgs_pxl_vld)
     );
+
+    axi4_ctrl #(
+        .AXI4_CTRL_CONF     (1),
+        .AXI4_CTRL_STAT     (1),
+        .AXI4_CTRL_MEM      (0),
+        .AXI4_CTRL_WR_ST    (1),
+        .AXI4_CTRL_RD_ST    (0),
+        .DATA_W             (DATA_W), 
+        .ADDR_W             (ADDR_W), 
+        .MST_ID_W           (MST_ID_W),
+        .TRANS_DATA_LEN_W   (ATX_LEN_W),   
+        .TRANS_DATA_SIZE_W  (ATX_SIZE_W),
+        .TRANS_RESP_W       (ATX_RESP_W),
+        .CONF_BASE_ADDR     (IP_CONF_BASE_ADDR),
+        .CONF_OFFSET        (),
+        .CONF_REG_NUM       ()
+    ) rm (
+        .clk            (clk),
+        .rst_n          (rst_n),
+        .m_awid_i       (m_awid_i),
+        .m_awaddr_i     (m_awaddr_i),
+        .m_awburst_i    (m_awburst_i),
+        .m_awlen_i      (m_awlen_i),
+        .m_awvalid_i    (m_awvalid_i),
+        .m_awready_o    (m_awready_o),
+        .m_wdata_i      (m_wdata_i),
+        .m_wlast_i      (m_wlast_i),
+        .m_wvalid_i     (m_wvalid_i),
+        .m_wready_o     (m_wready_o),
+        .m_bid_o        (m_bid_o),
+        .m_bresp_o      (m_bresp_o),
+        .m_bvalid_o     (m_bvalid_o),
+        .m_bready_i     (m_bready_i),
+        .m_arid_i       (m_arid_i),
+        .m_araddr_i     (m_araddr_i),
+        .m_arlen_i      (m_arlen_i),
+        .m_arburst_i    (m_arburst_i),
+        .m_arvalid_i    (m_arvalid_i),
+        .m_arready_o    (m_arready_o),
+        .m_rid_o        (m_rid_o),
+        .m_rdata_o      (m_rdata_o),
+        .m_rresp_o      (m_rresp_o),
+        .m_rlast_o      (m_rlast_o),
+        .m_rvalid_o     (m_rvalid_o),
+        .m_rready_i     (m_rready_i),
+        .stat_reg_i     (stat_reg_i),
+        .mem_wr_rdy_i   (),
+        .mem_rd_data_i  (),
+        .mem_rd_rdy_i   (),
+        .wr_st_rd_vld_i (),
+        .rd_st_wr_data_i(),
+        .rd_st_wr_vld_i (),
+        .conf_reg_o     (),
+        .mem_wr_data_o  (),
+        .mem_wr_addr_o  (),
+        .mem_wr_vld_o   (),
+        .mem_rd_addr_o  (),
+        .mem_rd_vld_o   (),
+        .wr_st_rd_data_o(),
+        .wr_st_rd_rdy_o (),
+        .rd_st_wr_rdy_o ()
+    );
     
     dvp_config #(
         .BASE_ADDR      (IP_CONF_BASE_ADDR),
@@ -160,9 +213,9 @@ module dvp_rx_controller
         .DATA_W         (DATA_W),
         .ADDR_W         (ADDR_W),
         .MST_ID_W       (MST_ID_W),
-        .TRANS_DATA_LEN_W(TRANS_DATA_LEN_W),
-        .TRANS_DATA_SIZE_W(TRANS_DATA_SIZE_W),
-        .TRANS_RESP_W   (TRANS_RESP_W)
+        .ATX_LEN_W(ATX_LEN_W),
+        .ATX_SIZE_W(ATX_SIZE_W),
+        .ATX_RESP_W   (ATX_RESP_W)
     ) dcr (
         .clk            (clk),
         .rst_n          (rst_n),
@@ -215,8 +268,8 @@ module dvp_rx_controller
     ) pgs (
         .rgb_pxl_i       (dsm_pgs_pxl),   
         .rgb_pxl_vld_i   (dsm_pgs_pxl_vld),
-        .gs_pxl_rdy_i    (pdf_pgs_rdy),
         .rgb_pxl_rdy_o   (pgs_dsm_pxl_rdy),
+        .gs_pxl_rdy_i    (pdf_pgs_rdy),
         .gs_pxl_o        (pgs_pdf_gs_pxl),
         .gs_pxl_vld_o    (pgs_pdf_vld)
     );
@@ -240,8 +293,8 @@ module dvp_rx_controller
         .DATA_W         (TX_DATA_W),
         .ADDR_W         (ADDR_W),
         .MST_ID_W       (MST_ID_W),
-        .TRANS_DATA_SIZE_W(TRANS_DATA_SIZE_W),
-        .TRANS_RESP_W   (TRANS_RESP_W),
+        .ATX_SIZE_W(ATX_SIZE_W),
+        .ATX_RESP_W   (ATX_RESP_W),
         .TX_PER_TXN     ()
     ) pat (
         .clk            (clk),
