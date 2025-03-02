@@ -1,5 +1,4 @@
-module pixel_fifo
-#(
+module drc_pixel_fifo #(
     parameter DVP_DATA_W    = 8,
     parameter PXL_FIFO_D    = 32,   /* Caution: Full FIFO can cause data loss */
     // Do not configure
@@ -11,20 +10,18 @@ module pixel_fifo
     input                       clk,
     input                       rst_n,
     // -- DVP Configuration register
-    input                       dcr_cam_start_i,
+    input                       cam_rx_en,
     // -- DVP Camera interface
     input   [DVP_DATA_W-1:0]    dvp_d_i,
     input                       dvp_href_i,
     input                       dvp_vsync_i,
     input                       dvp_hsync_i,
     // -- DVP PCLK synchronizer
-    input                       dps_pclk_sync_i,
-    // -- DVP RX State machine
-    input                       dsm_pxl_rdy_i,
-    // Output declaration
-    // -- DVP RX State machine
-    output  [PXL_INFO_W-1:0]    dsm_pxl_o,
-    output                      dsm_pxl_vld_o
+    input                       pclk_sync,
+    // -- Pixel Info 
+    output  [PXL_INFO_W-1:0]    pxl_info_dat,
+    output                      pxl_info_vld,
+    input                       pxl_info_rdy
 );
     // Internal signal
     // -- wire  
@@ -47,13 +44,13 @@ module pixel_fifo
         .clk            (clk),
         .rst_n          (rst_n),
         .data_i         (ff_data_in),
-        .data_o         (dsm_pxl_o),
+        .data_o         (pxl_info_dat),
         .wr_valid_i     (dvp_d_vld),
-        .rd_valid_i     (dsm_pxl_rdy_i),
+        .rd_valid_i     (pxl_info_rdy),
         .empty_o        (),
         .full_o         (), /* Caution: FIFO full state can cause data missing */
         .wr_ready_o     (),
-        .rd_ready_o     (dsm_pxl_vld_o),
+        .rd_ready_o     (pxl_info_vld),
         .almost_empty_o (),
         .almost_full_o  (),
         .counter        ()
@@ -64,7 +61,7 @@ module pixel_fifo
     ) vsync_det (
         .clk    (clk),
         .rst_n  (rst_n),
-        .en     (dps_pclk_sync_i),
+        .en     (cam_rx_en),
         .i      (dvp_vsync_i),
         .o      (vsync_rising)
     );
@@ -74,13 +71,13 @@ module pixel_fifo
     ) hsync_det (
         .clk    (clk),
         .rst_n  (rst_n),
-        .en     (dps_pclk_sync_i),
+        .en     (cam_rx_en),
         .i      (dvp_hsync_i),
         .o      (hsync_rising)
     );
     // Combination logic
     assign ff_data_in   = {vsync_flag_q, hsync_flag_q, dvp_d_i};
-    assign dvp_d_vld    = dvp_href_i & dps_pclk_sync_i;
+    assign dvp_d_vld    = dvp_href_i & pclk_sync & cam_rx_en;
     always @* begin
         vsync_flag_d = vsync_flag_q;
         if(vsync_rising) begin

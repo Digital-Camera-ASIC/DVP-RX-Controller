@@ -23,11 +23,11 @@ module drc_cs_state_machine #(
     input                       cam_rx_start,   // Start camera RX
     output                      cam_rx_start_qed,// Start signal is queued
     output  [2:0]               cam_rx_state,   // Camera RX state
-    input   [IMG_DIM_W*2-1:0]   cam_rx_len,     // Camera RX pixel length
-    output                      irq_msk_frm_comp, // IRQ mask Frame completion
-    output                      irq_msk_frm_err,  // IRQ mask Frame error
-    output  [IMG_DIM_W-1:0]     img_width,      // Image width
-    output  [IMG_DIM_W-1:0]     img_height,     // Image height
+    output  [IMG_DIM_W*2-1:0]   cam_rx_len,     // Camera RX pixel length
+    input                       irq_msk_frm_comp, // IRQ mask Frame completion
+    input                       irq_msk_frm_err,  // IRQ mask Frame error
+    input   [IMG_DIM_W-1:0]     img_width,      // Image width
+    input   [IMG_DIM_W-1:0]     img_height,     // Image height
     // Interrupt
     output                      irq, // Caused by frame completion
     output                      trap // Caused by pixel misalignment
@@ -46,34 +46,41 @@ module drc_cs_state_machine #(
     localparam STREAM_MODE      = 2'd2;
 
 
-    // Internal signals
-    // -- Wire
-    wire                drc_slp_mode;   // DRC in sleep mode
-    wire                drc_sng_mode;   // DRC in single-shot mode
-    wire                drc_str_mode;   // DRC in stream mode
-    wire                bwd_pxl_vsync;
-    wire                bwd_pxl_hsync;
-    wire                bwd_pxl_data;
-    wire                bwd_pxl_hsk;    // Backward pixel handshaking
-    wire                bwd_pred_hsync;
-    wire                fwd_hpxl_hsk;    // Forward half-pixel handshaking
-    wire                w_cnt_wrap; // Width counter == img_width
-    wire                h_cnt_wrap; // Height counter == img_height
-    reg [STATE_W-1:0]   drc_st_d;
-    reg                 pxl_ack_d;   // 
-    reg [IMG_DIM_W-1:0] w_cnt_d;  // Width counter
-    reg [IMG_DIM_W-1:0] h_cnt_d;  // Heigth counter
-    reg                 int_hpxl_vld;
-    reg                 int_pxl_info_rdy;
-    reg                 int_start_qed;  // Start-signal is queued
+    // Internal signals 
+    // -- Wire  
+    wire                    drc_slp_mode;   // DRC in sleep mode
+    wire                    drc_sng_mode;   // DRC in single-shot mode
+    wire                    drc_str_mode;   // DRC in stream mode
+    wire                    bwd_pxl_vsync;
+    wire                    bwd_pxl_hsync;
+    wire                    bwd_pxl_data;
+    wire                    bwd_pxl_hsk;    // Backward pixel handshaking
+    wire                    bwd_pred_hsync;
+    wire                    fwd_hpxl_hsk;    // Forward half-pixel handshaking
+    wire                    w_cnt_wrap; // Width counter == img_width
+    wire                    h_cnt_wrap; // Height counter == img_height
+    reg [STATE_W-1:0]       drc_st_d;
+    reg                     pxl_ack_d;   // 
+    reg [IMG_DIM_W-1:0]     w_cnt_d;  // Width counter
+    reg [IMG_DIM_W-1:0]     h_cnt_d;  // Heigth counter
+    reg [IMG_DIM_W*2-1:0]   pxl_cnt_d;
+    reg                     int_hpxl_vld;
+    reg                     int_pxl_info_rdy;
+    reg                     int_start_qed;  // Start-signal is queued
+    reg                     int_irq;
+    reg                     int_trap;
     
     // -- Flip-flop
-    reg [STATE_W-1:0]   drc_st_q;
-    reg                 pxl_ack_q;// 1 pixel is acknownledged completely (because DVP data width is 8bit only, the RGB pixel width is upto 16bit) 
-    reg [IMG_DIM_W-1:0] w_cnt_q;  // Width counter
-    reg [IMG_DIM_W-1:0] h_cnt_q;  // Height counter
+    reg [STATE_W-1:0]       drc_st_q;
+    reg                     pxl_ack_q;// 1 pixel is acknownledged completely (because DVP data width is 8bit only, the RGB pixel width is upto 16bit) 
+    reg [IMG_DIM_W-1:0]     w_cnt_q;  // Width counter
+    reg [IMG_DIM_W-1:0]     h_cnt_q;  // Height counter
+    reg [IMG_DIM_W*2-1:0]   pxl_cnt_q;
 
+    assign irq              = int_irq; 
+    assign trap             = int_trap;
     assign cam_rx_state     = drc_st_q;
+    assign cam_rx_len       = pxl_cnt_d;
     assign cam_rx_start_qed = int_start_qed;
     assign bwd_pxl_info_rdy = int_pxl_info_rdy;
     assign bwd_pxl_hsk      = bwd_pxl_info_vld & bwd_pxl_info_rdy;
@@ -93,10 +100,13 @@ module drc_cs_state_machine #(
         drc_st_d            = drc_st_q;
         w_cnt_d             = w_cnt_q;
         h_cnt_d             = h_cnt_q;
+        pxl_cnt_d           = pxl_cnt_q;
         pxl_ack_d           = pxl_ack_q;
         int_pxl_info_rdy    = 1'b0;
         int_hpxl_vld        = 1'b0;
         int_start_qed       = 1'b0;
+        int_irq             = 1'b0;
+        int_trap            = 1'b0;
         case(drc_st_q)
             SLEEP_ST: begin
                 int_pxl_info_rdy = 1'b1;    // Skip all pixels
@@ -116,6 +126,7 @@ module drc_cs_state_machine #(
                     // Reset all counters
                     w_cnt_d = {IMG_DIM_W{1'b0}};
                     h_cnt_d = {IMG_DIM_W{1'b0}};
+                    pxl_cnt_d = {(IMG_DIM_W*2){1'b0}};
                     pxl_ack_d = 1'b0;
                 end
             end
@@ -131,13 +142,16 @@ module drc_cs_state_machine #(
                     if(pxl_ack_q) begin // Update counters 
                         w_cnt_d = w_cnt_wrap ? {IMG_DIM_W{1'b0}} : w_cnt_q + 1'b1;
                         h_cnt_d = w_cnt_wrap ? (h_cnt_wrap ? {IMG_DIM_W{1'b0}} : h_cnt_q + 1'b1) : h_cnt_q;
+                        pxl_cnt_d = (w_cnt_wrap & h_cnt_wrap) ? {(IMG_DIM_W*2){1'b0}} : pxl_cnt_q + 1'b1;
                     end
                     if(bwd_pxl_hsync ^ bwd_pred_hsync) begin   // reference HSYNC != predicted HSYNC -> Error
                         drc_st_d = ERR_CORRECT_ST;
+                        int_trap = irq_msk_frm_err;    // Assert Trap signal (1 cycle) if this interrupt is enable
                     end
-                    else begin
+                    else begin  // The current frame is received successfully
                         if(h_cnt_wrap) begin    // End of a frame
                             drc_st_d = IDLE_ST;
+                            int_irq  = irq_msk_frm_comp;    // Assert interrupt signal (1 cycle) if this interrupt is enable
                         end
                     end
                 end
@@ -179,11 +193,13 @@ module drc_cs_state_machine #(
             drc_st_q    <= SLEEP_ST;
             w_cnt_q     <= {IMG_DIM_W{1'b0}};
             h_cnt_q     <= {IMG_DIM_W{1'b0}};
+            pxl_cnt_q   <= {(IMG_DIM_W*2){1'b0}};
             pxl_ack_q   <= 1'b0;
         end 
         else begin
             drc_st_q    <= drc_st_d;
             w_cnt_q     <= w_cnt_d;
+            pxl_cnt_q   <= pxl_cnt_d;
             h_cnt_q     <= h_cnt_d;
             pxl_ack_q   <= pxl_ack_d;
         end

@@ -1,5 +1,4 @@
-module drc_regmap
-#(
+module drc_regmap #(
     // CSR 
     parameter DRC_BASE_ADDR     = 32'h8000_0000,
     // AXI4 Slave

@@ -1,4 +1,4 @@
-module dvp_pclk_sync(
+module drc_pclk_sync (
     // Input declaration
     // -- Global
     input   clk,
@@ -7,7 +7,7 @@ module dvp_pclk_sync(
     input   dvp_pclk_i,
     // Output declaration
     // -- Pixel FIFO
-    output  pf_pclk_sync_o
+    output  pclk_sync
 );
     // Internal module
     edgedet #(
@@ -17,6 +17,6 @@ module dvp_pclk_sync(
         .rst_n  (rst_n),
         .en     (1'b1),
         .i      (dvp_pclk_i),
-        .o      (pf_pclk_sync_o)
+        .o      (pclk_sync)
     );
 endmodule
