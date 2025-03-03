@@ -181,7 +181,7 @@ module drc_cs_state_machine #(
                         w_cnt_d = w_cnt_wrap ? {IMG_DIM_W{1'b0}} : w_cnt_q + 1'b1;
                         h_cnt_d = w_cnt_wrap ? (h_cnt_wrap ? {IMG_DIM_W{1'b0}} : h_cnt_q + 1'b1) : h_cnt_q;
                     end
-                    drc_st_d = h_cnt_wrap ? PXL_ALIGN_ST : drc_st_q;    // Transit to PIXEL_ALIGN state when sending all fake pixels to DMA 
+                    drc_st_d = (pxl_ack_q & w_cnt_wrap & h_cnt_wrap) ? PXL_ALIGN_ST : drc_st_q;    // Transit to PIXEL_ALIGN state when sending all fake pixels to DMA 
                 end
             end
         endcase

@@ -12,7 +12,7 @@
 // `define MONITOR_AXI4_SLV_AR
 // `define MONITOR_AXI4_SLV_R
 
-`define END_TIME        36000000
+`define END_TIME        60000000
 
 // DVP Physical characteristic
 // -- t_PDV = 5 ns = (5/INTERNAL_CLK_PERIOD)*DUT_CLK_PERIOD = (5/8)*2
@@ -37,8 +37,8 @@ parameter ATX_RESP_W        = 2;
 parameter DVP_DATA_W        = 8;
 parameter DVP_FIFO_D        = 32;   // DVP FIFO depth 
 // Image 
-parameter PXL_GRAYSCALE     = 1;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
-parameter FRM_DOWNSCALE     = 1;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
+parameter PXL_GRAYSCALE     = 0;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
+parameter FRM_DOWNSCALE     = 0;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
 parameter FRM_COL_NUM       = 640;  // Maximum columns in 1 frame
 parameter FRM_ROW_NUM       = 480;  // Maximum rows in 1 frame
 parameter DOWNSCALE_TYPE    = "AVR-POOLING";  // Downscale Type - "AVR-POOLING": Average Pooling || "MAX-POOLING": Max pooling
@@ -320,8 +320,9 @@ module dvp_rx_controller_tb;
         drc_config.img_height       = FRM_ROW_NUM;  // Image height from DVP interface
         config_drc(drc_config);
 
-        // #18121676;
-        // config_desc(desc_config);
+        #18121676;
+        config_desc(desc_config);
+        config_desc(desc_config);
     end
     
     /* ------------ Driver ------------ */

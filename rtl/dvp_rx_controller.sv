@@ -16,10 +16,10 @@ module dvp_rx_controller #(
     parameter ATX_RESP_W        = 2,
     // DVP configuration
     parameter DVP_DATA_W        = 8,
-    parameter DVP_FIFO_D        = 32,   // DVP FIFO depth 
+    parameter DVP_FIFO_D        = 4,   // DVP FIFO depth 
     // Image 
-    parameter PXL_GRAYSCALE     = 0,    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
-    parameter FRM_DOWNSCALE     = 0,    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
+    parameter PXL_GRAYSCALE     = 1,    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
+    parameter FRM_DOWNSCALE     = 1,    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
     parameter FRM_COL_NUM       = 640,  // Maximum columns in 1 frame
     parameter FRM_ROW_NUM       = 480,  // Maximum rows in 1 frame
     parameter DOWNSCALE_TYPE    = "AVR-POOLING"  // Downscale Type - "AVR-POOLING": Average Pooling || "MAX-POOLING": Max pooling
@@ -115,8 +115,6 @@ module dvp_rx_controller #(
     // Interrupt and Trap
     wire                        int_dma_irq     [0:0];
     wire                        int_dma_trap    [0:0];
-    // PCLK Sync -> Pixel FIFO
-    wire                        pclk_sync;
     // Pixel FIFO -> DRC Control State
     wire    [PXL_INFO_W-1:0]    pxl_info_dat;
     wire                        pxl_info_vld;
@@ -208,19 +206,12 @@ module dvp_rx_controller #(
         .dvp_xclk_o         (dvp_xclk_o),
         .dvp_pwdn_o         (dvp_pwdn_o)
     );
-    // -- PCLK Synchronizer
-    drc_pclk_sync ps (
-        .clk                (clk),
-        .rst_n              (rst_n),
-        .dvp_pclk_i         (dvp_pclk_i),
-        .pclk_sync          (pclk_sync)
-    );
-    // -- Pixel FIFO
-    drc_pixel_fifo #(
+    // -- DVP Data FIFO
+    drc_dvp_data_fifo #(
         .DVP_DATA_W         (DVP_DATA_W),
         .PXL_INFO_W         (PXL_INFO_W),
         .PXL_FIFO_D         (DVP_FIFO_D)
-    ) pf (
+    ) ddf (
         .clk                (clk),
         .rst_n              (rst_n),
         .cam_rx_en          (cam_rx_en),
@@ -228,7 +219,7 @@ module dvp_rx_controller #(
         .dvp_href_i         (dvp_href_i),
         .dvp_vsync_i        (dvp_vsync_i),
         .dvp_hsync_i        (dvp_hsync_i),
-        .pclk_sync          (pclk_sync),
+        .dvp_pclk_i         (dvp_pclk_i),
         .pxl_info_dat       (pxl_info_dat),
         .pxl_info_vld       (pxl_info_vld),
         .pxl_info_rdy       (pxl_info_rdy)
@@ -559,7 +550,7 @@ module dvp_rx_controller #(
     assign flat_s_bresp                     = {s_bresp[1],      s_bresp[0]};
     assign flat_s_bvalid                    = {s_bvalid[1],     s_bvalid[0]};
     assign {s_bready[1],     s_bready[0]}   = flat_s_bready;
-    
+
     assign {s_arid[1],       s_arid[0]}     = flat_s_arid;
     assign {s_araddr[1],     s_araddr[0]}   = flat_s_araddr;
     assign {s_arburst[1],    s_arburst[0]}  = flat_s_arburst;
