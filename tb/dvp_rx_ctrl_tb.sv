@@ -37,8 +37,8 @@ parameter ATX_RESP_W        = 2;
 parameter DVP_DATA_W        = 8;
 parameter DVP_FIFO_D        = 32;   // DVP FIFO depth 
 // Image 
-parameter PXL_GRAYSCALE     = 0;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
-parameter FRM_DOWNSCALE     = 0;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
+parameter PXL_GRAYSCALE     = 1;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
+parameter FRM_DOWNSCALE     = 1;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
 parameter FRM_COL_NUM       = 640;  // Maximum columns in 1 frame
 parameter FRM_ROW_NUM       = 480;  // Maximum rows in 1 frame
 parameter DOWNSCALE_TYPE    = "AVR-POOLING";  // Downscale Type - "AVR-POOLING": Average Pooling || "MAX-POOLING": Max pooling
@@ -118,10 +118,13 @@ module dvp_rx_controller_tb;
     localparam PROC_PXL_SIZE    = PXL_GRAYSCALE ? 8 : IN_PXL_SIZE;   // Processed pixel size
     
     localparam IN_FRM_SIZE      = FRM_COL_NUM * FRM_ROW_NUM;// Input frame size
-    localparam PROC_FRM_SIZE    = FRM_DOWNSCALE ? IN_FRM_SIZE : IN_FRM_SIZE/4; // Processed frame size 
+    localparam PROC_FRM_COL_NUM = FRM_DOWNSCALE ? (FRM_COL_NUM/2) : FRM_COL_NUM;
+    localparam PROC_FRM_ROW_NUM = FRM_DOWNSCALE ? (FRM_ROW_NUM/2) : FRM_ROW_NUM;
+    localparam PROC_FRM_SIZE    = FRM_DOWNSCALE ? (IN_FRM_SIZE/4) : IN_FRM_SIZE; // Processed frame size 
 
     localparam MEM_WORD_W       = 256;// 256bit-access
     localparam MEM_FRM_SIZE     = PROC_FRM_SIZE * PROC_PXL_SIZE / MEM_WORD_W;
+    localparam MEM_FRM_ADDR_W   = $clog2(MEM_FRM_SIZE);
 
     localparam DMA_BASE_ADDR    = DRC_BASE_ADDR |  (1 << DMA_SEL_BIT);  // DMA Memory Address:    ADDR[DMA_SEL_BIT] = 1
     localparam DRM_BASE_ADDR    = DRC_BASE_ADDR & ~(1 << DMA_SEL_BIT);  // RegMap Memory Address: ADDR[DMA_SEL_BIT] = 0
@@ -236,18 +239,11 @@ module dvp_rx_controller_tb;
         // AXI4 Pixel TX interface
         m_awready_i <= 1;
         m_wready_i  <= 1;
-        m_bid_i     <= 0;
-        m_bresp_i   <= 0;
         m_bvalid_i  <= 0;
         // AXI4 Configuration interface
-        s_awid_i    <= 0;
-        s_awaddr_i  <= 0;
         s_awvalid_i <= 0;
-        s_wdata_i   <= 0;
         s_wvalid_i  <= 0;
         s_bready_i  <= 1;
-        s_arid_i    <= 0;
-        s_araddr_i  <= 0;
         s_arvalid_i <= 0; 
         s_rready_i  <= 1;
         
@@ -293,9 +289,9 @@ module dvp_rx_controller_tb;
         chn_config.chn_id           = 'd00;
         chn_config.chn_en           = 1'b1; // Enable channel 0
         chn_config.chn_2d_xfer      = 1'b1; // On
-        chn_config.chn_cyclic_xfer  = 1'b1; // On
+        chn_config.chn_cyclic_xfer  = 1'b0; // Off
         chn_config.chn_irq_msk_com  = 1'b1; // Enable
-        chn_config.chn_irq_msk_qed  = 1'b1; // Enable
+        chn_config.chn_irq_msk_qed  = 1'b0; // Disable
         chn_config.chn_arb_rate     = 'h03;
         chn_config.atx_id           = 'h02;
         chn_config.atx_src_burst    = 2'b00; // FIX burst 
@@ -307,22 +303,25 @@ module dvp_rx_controller_tb;
         desc_config.chn_id          = 'd00;
         desc_config.src_addr        = 32'h1000_0000;
         desc_config.dst_addr        = 32'h2000_0000;
-        desc_config.xfer_xlen       = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W - 1; // Col Length = FRM_COL_NUM
-        desc_config.xfer_ylen       = FRM_ROW_NUM - 1; // Row Length = FRM_ROW_NUM
-        desc_config.src_stride      = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
-        desc_config.dst_stride      = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
+        desc_config.xfer_xlen       = PROC_FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W - 1; 
+        desc_config.xfer_ylen       = PROC_FRM_ROW_NUM - 1; // Row Length = FRM_ROW_NUM
+        desc_config.src_stride      = PROC_FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
+        desc_config.dst_stride      = PROC_FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
         config_desc(desc_config);
 
         // Configure DVP RX Controller
         drc_config.cam_rx_en        = 1'b1;
         drc_config.cam_pwdn         = 1'b0;
-        drc_config.cam_rx_mode      = 2'b01;// 2’b00: SLEEP || 2’b01: SINGLE-SHOT || 2’b10: STREAM
+        drc_config.cam_rx_mode      = 2'b10;// 2’b00: SLEEP || 2’b01: SINGLE-SHOT || 2’b10: STREAM
         drc_config.cam_rx_start     = 1'b1;
         drc_config.irq_fr_comp_msk  = 1'b1;
         drc_config.irq_fr_err_msk   = 1'b1;
-        drc_config.img_width        = FRM_COL_NUM;
-        drc_config.img_height       = FRM_ROW_NUM;
+        drc_config.img_width        = FRM_COL_NUM;  // Image width from DVP interface
+        drc_config.img_height       = FRM_ROW_NUM;  // Image height from DVP interface
         config_drc(drc_config);
+
+        // #18121676;
+        // config_desc(desc_config);
     end
     
     /* ------------ Driver ------------ */
@@ -336,97 +335,26 @@ module dvp_rx_controller_tb;
     end 
     /* ------------ Driver ------------ */
 
-    /* ------------ AXI4 Master Monitor ------------ */
-    initial begin
-        while(1'b1) begin
-            wait((m_wvalid_o & m_wready_i) == 1'b1); #0.1; // Handshaking
-            output_img[wdata_cnt] = m_wdata_o;
-            wdata_cnt++;
-            if(wdata_cnt == MEM_FRM_SIZE) begin
-                wdata_cnt = 0;
-                $writememh("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/output.txt", output_img);
-            end
-            aclk_cl;
-        end
-    end
-    /* ------------ AXI4 Master Monitor ------------ */
 
-    /*------------- AXI4 Slave Monitor ------------*/
+    /*------------ Monitor ------------*/
     initial begin   : DMA_SLV_MONITOR
         #(`RST_DLY_START + `RST_DUR + 1);
-        fork 
-            `ifdef MONITOR_AXI4_SLV_AW
-                begin   : AW_chn
-                    while(1'b1) begin
-                        wait(s_awready_o & s_awvalid_i); #0.1;  // AW hanshaking
-                        $display("\n---------- DMA Slave: AW channel ----------");
-                        $display("AWID:     0x%8h", s_awid_i);
-                        $display("AWADDR:   0x%8h", s_awaddr_i);
-                        $display("AWLEN:    0x%8h", s_awlen_i);
-                        $display("--------------------------------------------");
-                        aclk_cl;
-                    end
-                end
-            `endif
-            `ifdef MONITOR_AXI4_SLV_W
-                begin   : W_chn
-                    while(1'b1) begin
-                        wait(s_wready_o & s_wvalid_i); #0.1;  // W hanshaking
-                        $display("\n\t\t\t\t\t\t---------- DMA Slave: W channel ----------");
-                        $display("\t\t\t\t\t\tWDATA:    0x%8h", s_wdata_i);
-                        $display("\t\t\t\t\t\tWLAST:    0x%8h", s_wlast_i);
-                        $display("\t\t\t\t\t\t--------------------------------------------");
-                        aclk_cl;
-                    end
-                end
-            `endif
-            `ifdef MONITOR_AXI4_SLV_B
-                begin   : B_chn
-                    while(1'b1) begin
-                        wait(s_bready_i & s_bvalid_o); #0.1;  // B hanshaking
-                        $display("\n\t\t\t\t\t\t\t\t\t\t\t\t---------- DMA Slave: B channel ----------");
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tBID:      0x%8h", s_bid_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tBRESP:    0x%8h", s_bresp_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\t--------------------------------------------");
-                        aclk_cl;
-                    end
-                end
-            `endif
-            `ifdef MONITOR_AXI4_SLV_AR
-                begin   : AR_chn
-                    while(1'b1) begin
-                        wait(s_arready_o & s_arvalid_i); #0.1;  // AR hanshaking
-                        $display("\n---------- DMA Slave: AR channel ----------");
-                        $display("ARID:     0x%8h", s_arid_i);
-                        $display("ARADDR:   0x%8h", s_araddr_i);
-                        $display("ARLEN:    0x%8h", s_arlen_i);
-                        $display("--------------------------------------------");
-                        aclk_cl;
-                    end
-                end
-            `endif
-            `ifdef MONITOR_AXI4_SLV_R
-                begin   : R_chn
-                    while(1'b1) begin
-                        wait(s_rready_i & s_rvalid_o); #0.1;  // R hanshaking
-                        $display("\n\t\t\t\t\t\t\t\t\t\t\t\t---------- DMA Slave: R channel ----------");
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRID:      0x%8h", s_rid_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRDATA:    0x%8h", s_rdata_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRRESP:    0x%8h", s_rresp_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRLAST:    0x%8h", s_rlast_o);
-                        $display("\t\t\t\t\t\t\t\t\t\t\t\t--------------------------------------------");
-                        aclk_cl;
-                    end
-                end
-            `endif
-            begin end
+        fork
+            drc_slave_monitor();
+            mem_monitor();
         join_none
     end
-    /*------------ AXI4 Slave monitor ------------*/
+    /*------------ Monitor ------------*/
 
     initial begin
         #(`END_TIME) $finish;
     end
+
+
+
+    // ===============================================================================
+    // =============================== Task Definitions ==============================
+    // ===============================================================================
 
     task automatic dvp_driver();
         // Important note: 
@@ -578,7 +506,7 @@ module dvp_rx_controller_tb;
                                 $stop;
                             end
                             // Store pixel group to Memory
-                            output_img[aw_temp.axaddr[29:0] + i] <= w_temp.wdata[i];
+                            output_img[(aw_temp.axaddr[MEM_FRM_ADDR_W-1:0] + i)] <= w_temp.wdata[i];
 
                             // Handshake occurs 
                             aclk_cl;
@@ -653,6 +581,95 @@ module dvp_rx_controller_tb;
             end
         join_none
     endtask
+    
+    task automatic drc_slave_monitor();
+        fork 
+            `ifdef MONITOR_AXI4_SLV_AW
+                begin   : AW_chn
+                    while(1'b1) begin
+                        wait(s_awready_o & s_awvalid_i); #0.1;  // AW hanshaking
+                        $display("\n---------- DMA Slave: AW channel ----------");
+                        $display("AWID:     0x%8h", s_awid_i);
+                        $display("AWADDR:   0x%8h", s_awaddr_i);
+                        $display("AWLEN:    0x%8h", s_awlen_i);
+                        $display("--------------------------------------------");
+                        aclk_cl;
+                    end
+                end
+            `endif
+            `ifdef MONITOR_AXI4_SLV_W
+                begin   : W_chn
+                    while(1'b1) begin
+                        wait(s_wready_o & s_wvalid_i); #0.1;  // W hanshaking
+                        $display("\n\t\t\t\t\t\t---------- DMA Slave: W channel ----------");
+                        $display("\t\t\t\t\t\tWDATA:    0x%8h", s_wdata_i);
+                        $display("\t\t\t\t\t\tWLAST:    0x%8h", s_wlast_i);
+                        $display("\t\t\t\t\t\t--------------------------------------------");
+                        aclk_cl;
+                    end
+                end
+            `endif
+            `ifdef MONITOR_AXI4_SLV_B
+                begin   : B_chn
+                    while(1'b1) begin
+                        wait(s_bready_i & s_bvalid_o); #0.1;  // B hanshaking
+                        $display("\n\t\t\t\t\t\t\t\t\t\t\t\t---------- DMA Slave: B channel ----------");
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tBID:      0x%8h", s_bid_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tBRESP:    0x%8h", s_bresp_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\t--------------------------------------------");
+                        aclk_cl;
+                    end
+                end
+            `endif
+            `ifdef MONITOR_AXI4_SLV_AR
+                begin   : AR_chn
+                    while(1'b1) begin
+                        wait(s_arready_o & s_arvalid_i); #0.1;  // AR hanshaking
+                        $display("\n---------- DMA Slave: AR channel ----------");
+                        $display("ARID:     0x%8h", s_arid_i);
+                        $display("ARADDR:   0x%8h", s_araddr_i);
+                        $display("ARLEN:    0x%8h", s_arlen_i);
+                        $display("--------------------------------------------");
+                        aclk_cl;
+                    end
+                end
+            `endif
+            `ifdef MONITOR_AXI4_SLV_R
+                begin   : R_chn
+                    while(1'b1) begin
+                        wait(s_rready_i & s_rvalid_o); #0.1;  // R hanshaking
+                        $display("\n\t\t\t\t\t\t\t\t\t\t\t\t---------- DMA Slave: R channel ----------");
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRID:      0x%8h", s_rid_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRDATA:    0x%8h", s_rdata_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRRESP:    0x%8h", s_rresp_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\tRLAST:    0x%8h", s_rlast_o);
+                        $display("\t\t\t\t\t\t\t\t\t\t\t\t--------------------------------------------");
+                        aclk_cl;
+                    end
+                end
+            `endif
+            begin end
+        join_none
+    endtask
+
+    task automatic mem_monitor();
+        int fd0;
+        #(`RST_DLY_START + `RST_DUR + 1); // Wait for reset ending
+        while(1'b1) begin
+            wait(dma_irq == 1'b1); #0.1;    // 1 frame is stored in Memory completely
+            aclk_cl;
+            fd0 = $fopen("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/frame_mem_format.txt", "w");
+            if (PXL_GRAYSCALE) begin
+                $fwrite(fd0, "Image Size:\t\t%0d x %0d\nPixel Format:\tGRAYSCALE", PROC_FRM_COL_NUM, PROC_FRM_ROW_NUM);
+            end 
+            else begin
+                $fwrite(fd0, "Image Size:\t\t%0d x %0d\nPixel Format:\tRGB565", PROC_FRM_COL_NUM, PROC_FRM_ROW_NUM);
+            end
+            $fclose(fd0);
+            $writememh("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/frame_mem_data.txt", output_img);
+        end
+    endtask
+
     task automatic s_aw_transfer(
         input [MST_ID_W-1:0]    s_awid,
         input [S_ADDR_W-1:0]    s_awaddr,

@@ -37,6 +37,7 @@ module drc_frm_downscaler #(
     wire                    pf_wr_vld_map   [0:3];
     wire                    pf_rd_rdy_map   [0:3];
     wire                    pf_rd_vld_map   [0:3];
+    wire    [I_PXL_W+1:0]   sum_block_pxl;  // Sum of 4 neighboring pixels
     wire                    fwd_pxl_hsk;
     // -- reg
     reg     [COL_CTN_W-1:0] col_ctn_q;
@@ -137,7 +138,8 @@ module drc_frm_downscaler #(
     assign pf_wr_vld_map[3] = bwd_pxl_vld_i & (col_ctn_q[0]    & row_odd_q);
     generate
     if(DOWNSCALE_TYPE == "AVR-POOLING") begin : AVR_POOL
-        assign fwd_pxl_data_o = (pf_data_o_map[0] + pf_data_o_map[1] + pf_data_o_map[2] + pf_data_o_map[3]) >> 2;
+        assign sum_block_pxl  = pf_data_o_map[0] + pf_data_o_map[1] + pf_data_o_map[2] + pf_data_o_map[3];  
+        assign fwd_pxl_data_o = sum_block_pxl >> 2;
     end
     else if(DOWNSCALE_TYPE == "MAX-POOLING") begin : MAX_POOL
         wire [I_PXL_W-1:0]  pxl_tournament_0;
