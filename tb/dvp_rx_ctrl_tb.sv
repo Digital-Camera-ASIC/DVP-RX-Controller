@@ -37,8 +37,8 @@ parameter ATX_RESP_W        = 2;
 parameter DVP_DATA_W        = 8;
 parameter DVP_FIFO_D        = 32;   // DVP FIFO depth 
 // Image 
-parameter PXL_GRAYSCALE     = 0;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
-parameter FRM_DOWNSCALE     = 0;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
+parameter PXL_GRAYSCALE     = 1;    // Resize (Pixel Grayscale) - 0: DISABLE || 1 : ENABLE 
+parameter FRM_DOWNSCALE     = 1;    // Resize (Frame Downscale) - 0: DISABLE || 1 : ENABLE
 parameter FRM_COL_NUM       = 640;  // Maximum columns in 1 frame
 parameter FRM_ROW_NUM       = 480;  // Maximum rows in 1 frame
 parameter DOWNSCALE_TYPE    = "AVR-POOLING";  // Downscale Type - "AVR-POOLING": Average Pooling || "MAX-POOLING": Max pooling
@@ -256,7 +256,7 @@ module dvp_rx_controller_tb;
     end
 
     initial begin
-        $readmemh("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/img_txt.txt", input_img);
+        $readmemh("./env/dvp_mem_data.txt", input_img);
     end
     
     // initial begin
@@ -659,7 +659,7 @@ module dvp_rx_controller_tb;
         while(1'b1) begin
             wait(dma_irq == 1'b1); #0.1;    // 1 frame is stored in Memory completely
             aclk_cl;
-            fd0 = $fopen("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/frame_mem_format.txt", "w");
+            fd0 = $fopen("./env/axi_mem_format.txt", "w");
             if (PXL_GRAYSCALE) begin
                 $fwrite(fd0, "Image Size:\t\t%0d x %0d\nPixel Format:\tGRAYSCALE", PROC_FRM_COL_NUM, PROC_FRM_ROW_NUM);
             end 
@@ -667,7 +667,7 @@ module dvp_rx_controller_tb;
                 $fwrite(fd0, "Image Size:\t\t%0d x %0d\nPixel Format:\tRGB565", PROC_FRM_COL_NUM, PROC_FRM_ROW_NUM);
             end
             $fclose(fd0);
-            $writememh("L:/Projects/camera_rx_controller/DVP-RX-Controller/sim/env/frame_mem_data.txt", output_img);
+            $writememh("./env/axi_mem_data.txt", output_img);
         end
     endtask
 

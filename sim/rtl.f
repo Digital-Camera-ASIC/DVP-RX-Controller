@@ -9,3 +9,5 @@
 ./../rtl/others/splitter/*.v
 ./../rtl/others/dma/axi_dma/*.sv
 ./../rtl/others/reorder/*.sv
+./../rtl/others/synchronizer/fifo/*.v
+./../rtl/others/converter/*.v

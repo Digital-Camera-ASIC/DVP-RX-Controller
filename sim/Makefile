@@ -1,18 +1,23 @@
-TEST_MODULE?=dvp_rx_controller
+.PHONY: all pre_sim input_gen sim output_anal clean
 
-ifeq ($(OS),Windows_NT)
-	RM_CMD = powershell if (Test-Path $(TEST_MODULE)) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $(TEST_MODULE) }
-else
-	RM_CMD = rm -rf $(TEST_MODULE)
-endif
+all: clean pre_sim input_gen sim output_anal
 
-all: clean run_sim
+pre_sim:
+	if not exist env\dvp_mem_data.txt (type nul > env\dvp_mem_data.txt)
+	if not exist env\axi_mem_format.txt (type nul > env\axi_mem_format.txt)
+	if not exist env\axi_mem_data.txt (type nul > env\axi_mem_data.txt)
 
-run_sim: clean
-	mkdir $(TEST_MODULE)
-	qrun -verbose -lint=default -parallel -vlog.sv -vopt.access=rw+/. -f rtl.f -f tb.f -top $(TEST_MODULE)_tb -outdir $(TEST_MODULE) -l $(TEST_MODULE)/qrun.log -designfile $(TEST_MODULE)/$(TEST_MODULE).bin -qwavedb=+memory=all+assertion+signal+cell+class+wavefile=$(TEST_MODULE)/$(TEST_MODULE).db
+input_gen:
+	python env/img2txt.py
+
+sim:
+	$(MAKE) -f tool_run
+
+output_anal:
+	python env/txt2img.py
 
 clean:
-	$(RM_CMD)
-
-.PHONY: all clean
+	if exist env\dvp_mem_data.txt del /f env\dvp_mem_data.txt
+	if exist env\axi_mem_format.txt del /f env\axi_mem_format.txt
+	if exist env\axi_mem_data.txt del /f env\axi_mem_data.txt
+	if exist output* del /f output*
