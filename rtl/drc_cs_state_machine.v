@@ -149,7 +149,7 @@ module drc_cs_state_machine #(
                         int_trap = irq_msk_frm_err;    // Assert Trap signal (1 cycle) if this interrupt is enable
                     end
                     else begin  // The current frame is received successfully
-                        if(h_cnt_wrap) begin    // End of a frame
+                        if(pxl_ack_q & w_cnt_wrap & h_cnt_wrap) begin   // End of a frame - (second half pixel) & (end of row) & (end of col)
                             drc_st_d = IDLE_ST;
                             int_irq  = irq_msk_frm_comp;    // Assert interrupt signal (1 cycle) if this interrupt is enable
                         end

@@ -307,10 +307,10 @@ module dvp_rx_controller_tb;
         desc_config.chn_id          = 'd00;
         desc_config.src_addr        = 32'h1000_0000;
         desc_config.dst_addr        = 32'h2000_0000;
-        desc_config.xfer_xlen       = FRM_COL_NUM; // Col Length = FRM_COL_NUM
-        desc_config.xfer_ylen       = FRM_ROW_NUM; // Row Length = FRM_ROW_NUM
-        desc_config.src_stride      = FRM_COL_NUM;
-        desc_config.dst_stride      = FRM_COL_NUM;
+        desc_config.xfer_xlen       = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W - 1; // Col Length = FRM_COL_NUM
+        desc_config.xfer_ylen       = FRM_ROW_NUM - 1; // Row Length = FRM_ROW_NUM
+        desc_config.src_stride      = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
+        desc_config.dst_stride      = FRM_COL_NUM * PROC_PXL_SIZE / MEM_WORD_W;
         config_desc(desc_config);
 
         // Configure DVP RX Controller
@@ -324,52 +324,17 @@ module dvp_rx_controller_tb;
         drc_config.img_height       = FRM_ROW_NUM;
         config_drc(drc_config);
     end
-
-    initial begin   : AXI_MASTER_DRIVER
-        #(`RST_DLY_START + `RST_DUR + 1);
-        fork 
-            begin   : AW_DRV
-                atx_ax_info aw_temp;
-                forever begin
-                    if(s_seq_aw_info.try_get(aw_temp)) begin
-                        s_aw_transfer(.s_awid(aw_temp.axid), .s_awaddr(aw_temp.axaddr), .s_awburst(2'b01), .s_awlen(aw_temp.axlen));
-                    end
-                    else begin
-                        aclk_cl;    // Penalty 1 cycle
-                        s_awvalid_i <= 1'b0;
-                    end
-                end
-            end
-            begin   : W_DRV
-                atx_w_info w_temp;
-                int w_cnt;
-                forever begin
-                    if(s_seq_w_info.try_get(w_temp)) begin
-                        for(w_cnt = 0; w_cnt <= w_temp.wlen; w_cnt++) begin
-                            s_w_transfer(.s_wdata(w_temp.wdata[w_cnt]), .s_wlast(w_temp.wlen == w_cnt));
-                        end
-                    end
-                    else begin
-                        aclk_cl;    // Penalty 1 cycle
-                        s_wvalid_i <= 1'b0;
-                    end
-                end
-            end
-            begin   : AR_DRV
-                // 1st: TRANSFER_ID
-                s_ar_transfer(.s_arid(5'h00), .s_araddr(32'h8000_2001), .s_arburst(2'b01), .s_arlen(8'd00));
-                // 2nd: TRANSFER_ID
-                s_ar_transfer(.s_arid(5'h00), .s_araddr(32'h8000_2001), .s_arburst(2'b01), .s_arlen(8'd00));
-                aclk_cl;
-                s_arvalid_i <= 1'b0;
-            end
-        join_none
-    end
-    /* ------------ DVP Driver ------------ */
+    
+    /* ------------ Driver ------------ */
     initial begin
-        dvp_driver();
+        #(`RST_DLY_START + `RST_DUR + 1);
+        fork
+            dvp_driver();
+            slave_driver();
+            master_driver();
+        join_none
     end 
-    /* ------------ DVP Driver ------------ */
+    /* ------------ Driver ------------ */
 
     /* ------------ AXI4 Master Monitor ------------ */
     initial begin
@@ -576,7 +541,7 @@ module dvp_rx_controller_tb;
             begin   : AW_CHN
                 atx_ax_info aw_temp;
                 forever begin
-                    m_arready_i = 1'b1;
+                    m_awready_i = 1'b1;
                     m_aw_receive (
                         .awid   (aw_temp.axid),
                         .awaddr (aw_temp.axaddr),
@@ -588,9 +553,6 @@ module dvp_rx_controller_tb;
                     m_drv_aw_info.put(aw_temp);
                     // Handshake occurs
                     aclk_cl;
-                    // Stall random
-                    m_arready_i = 1'b0;
-                    rand_stall_cycle(`AWREADY_STALL_MAX);
                 end
             end
             begin   : W_CHN
@@ -620,9 +582,6 @@ module dvp_rx_controller_tb;
 
                             // Handshake occurs 
                             aclk_cl;
-                            // Stall random
-                            m_wready_i = 1'b0;
-                            rand_stall_cycle(`WREADY_STALL_MAX);
                         end
                         // Generate B transfer
                         b_temp.bid      = aw_temp.axid;
@@ -653,102 +612,44 @@ module dvp_rx_controller_tb;
                     end
                 end
             end
-            begin   : AR_CHN
-                atx_ax_info ar_temp;
+        join_none
+    endtask
+    task automatic master_driver();
+        fork 
+            begin   : AW_DRV
+                atx_ax_info aw_temp;
                 forever begin
-                    m_arready_i = 1'b1;
-                    m_ar_receive (
-                        .arid   (ar_temp.axid),
-                        .araddr (ar_temp.axaddr),
-                        .arburst(ar_temp.axburst),
-                        .arlen  (ar_temp.axlen)
-                    );
-                    // Handshake occurs
-                    aclk_cl;
-                    // Store AW info 
-                    m_drv_ar_info.put(ar_temp);
-                    // Stall random
-                    m_arready_i = 1'b0;
-                    rand_stall_cycle(`ARREADY_STALL_MAX);
+                    if(s_seq_aw_info.try_get(aw_temp)) begin
+                        s_aw_transfer(.s_awid(aw_temp.axid), .s_awaddr(aw_temp.axaddr), .s_awburst(2'b01), .s_awlen(aw_temp.axlen));
+                    end
+                    else begin
+                        aclk_cl;    // Penalty 1 cycle
+                        s_awvalid_i <= 1'b0;
+                    end
                 end
             end
-            begin   : R_CHN
-                atx_ax_info ar_temp;
+            begin   : W_DRV
+                atx_w_info w_temp;
+                int w_cnt;
                 forever begin
-                    if(m_drv_ar_info.try_get(ar_temp)) begin
-                        for(int i = 0; i <= ar_temp.axlen; i = i + 1) begin
-`ifdef CUSTOM_MODE
-                            m_r_transfer (
-                                .rid(ar_temp.axid),
-                                .rdata(i),
-                                .rresp(2'b00),
-                                .rlast(i == ar_temp.axlen)
-                            );
-`elsif IMG_STREAM_MODE
-                            m_r_transfer (
-                                .rid(ar_temp.axid),
-                                .rdata(src_mem[ar_temp.axaddr[29:0] + i]),
-                                .rresp(2'b00),
-                                .rlast(i == ar_temp.axlen)
-                            );
-`endif
+                    if(s_seq_w_info.try_get(w_temp)) begin
+                        for(w_cnt = 0; w_cnt <= w_temp.wlen; w_cnt++) begin
+                            s_w_transfer(.s_wdata(w_temp.wdata[w_cnt]), .s_wlast(w_temp.wlen == w_cnt));
                         end
                     end
                     else begin
-                        // Wait 1 cycle
-                        aclk_cl;
-                        m_rvalid_i = 1'b0;
+                        aclk_cl;    // Penalty 1 cycle
+                        s_wvalid_i <= 1'b0;
                     end
                 end
-            end 
-            begin   : SRC_AXIS
-            forever begin
-`ifdef IMG_STREAM_MODE
-                for(int i = 0; i < SRC_MEM_SIZE; i = i + 1) begin   // Scan all elements in Source Memory
-                    m_axis_transfer (
-                        .tid('h0),
-                        .tdata(src_mem[i]),
-                        .tkeep({ATX_SRC_BYTE_AMT{1'b1}}),
-                        .tstrb({ATX_SRC_BYTE_AMT{1'b1}}),
-                        .tlast(i == (SRC_MEM_SIZE-1))
-                    );
-                end
-`endif
             end
-            end
-            begin   : DST_AXIS
-                atx_axis axis_temp;
-                int tdata_cnt_0 = 0;
-                int tdata_cnt_1 = 0;
-                forever begin
-                    m_tready_i = 1'b1;
-                    s_axis_receive(
-                        .tid(axis_temp.tid),
-                        .tdest(axis_temp.tdest),
-                        .tdata(axis_temp.tdata),
-                        .tkeep(axis_temp.tkeep),
-                        .tstrb(axis_temp.tstrb),
-                        .tlast(axis_temp.tlast)
-                    );
-`ifdef IMG_STREAM_MODE
-                    if(axis_temp.tdest == 2'b00) begin
-                        dst_mem_0[tdata_cnt_0] <= axis_temp.tdata;
-                        tdata_cnt_0++;
-                    end
-                    else if(axis_temp.tdest == 2'b01) begin
-                        dst_mem_1[tdata_cnt_1] <= axis_temp.tdata;
-                        tdata_cnt_1++;
-                    end
-                    else begin
-                        $display("[FAIL]: Destination - Wrong TDEST value %2b)", axis_temp.tdest);
-                    end
-`endif          
-                    // Handshake occurs
-                    aclk_cl;
-                    // Stall random
-                    m_tready_i = 1'b0;
-                    rand_stall_cycle(`RREADY_STALL_MAX);
-                end
+            begin   : AR_DRV
+                // 1st: TRANSFER_ID
+                s_ar_transfer(.s_arid(5'h00), .s_araddr(32'h8000_2001), .s_arburst(2'b01), .s_arlen(8'd00));
+                // 2nd: TRANSFER_ID
+                s_ar_transfer(.s_arid(5'h00), .s_araddr(32'h8000_2001), .s_arburst(2'b01), .s_arlen(8'd00));
+                aclk_cl;
+                s_arvalid_i <= 1'b0;
             end
         join_none
     endtask
@@ -794,6 +695,41 @@ module dvp_rx_controller_tb;
         s_arvalid_i         <= 1'b1;
         // Handshake occur
         wait(s_arready_o == 1'b1); #0.1;
+    endtask
+    
+    task automatic m_aw_receive(
+        output  [MST_ID_W-1:0]      awid,
+        output  [DMA_ADDR_W-1:0]    awaddr,
+        output  [1:0]               awburst,
+        output  [ATX_LEN_W-1:0]     awlen
+        // output      [ATX_SIZE_W-1:0]    awsize
+    );
+        // Wait for BVALID
+        wait(m_awvalid_o == 1'b1); #0.1;
+        awid    = m_awid_o;
+        awaddr  = m_awaddr_o;
+        awburst = m_awburst_o;
+        awlen   = m_awlen_o; 
+        // awsize  = m_awsize_o; 
+    endtask
+    task automatic m_w_receive (
+        output  [DMA_DATA_W-1:0]    wdata,
+        output                      wlast
+    );
+        wait(m_wvalid_o == 1'b1); #0.1;
+        wdata   = m_wdata_o;
+        wlast   = m_wlast_o;
+    endtask
+    task automatic m_b_transfer (
+        input [MST_ID_W-1:0]    bid,
+        input [ATX_RESP_W-1:0]  bresp
+    );
+        aclk_cl;
+        m_bid_i     <= bid;
+        m_bresp_i   <= bresp;
+        m_bvalid_i  <= 1'b1;
+        // Wait for handshaking
+        wait(m_bready_o == 1'b1); #0.1;
     endtask
 
     task automatic aclk_cl;
