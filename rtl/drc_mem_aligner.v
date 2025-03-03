@@ -1,6 +1,7 @@
 module drc_mem_aligner #(
     parameter I_PXL_W       = 16,   // Input pixel width
     parameter AXIS_DATA_W   = 256,
+    parameter AXIS_TID_W    = 2,
     parameter AXIS_BYTE_AMT = AXIS_DATA_W/8  
 ) (
     input                       aclk,
@@ -11,7 +12,7 @@ module drc_mem_aligner #(
     input                       i_pxl_vld,
     output                      i_pxl_rdy,
     // AXI Stream Master interface (forward)
-    output                      tid,    // Not-use
+    output [AXIS_TID_W-1:0]     tid,    // Not-use
     output                      tdest,  // Not-use
     output [AXIS_DATA_W-1:0]    tdata,
     output                      tvalid,

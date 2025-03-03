@@ -1,3 +1,4 @@
 dvp_rx_controller*/
 testcase*
 vivado/
+sim/*

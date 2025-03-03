@@ -34,11 +34,11 @@ module drc_cs_state_machine #(
 );
     // Local parameters 
     // -- DRC State Machine
-    localparam SLEEP_ST         = 3'd00;
-    localparam IDLE_ST          = 3'd01; // IDLE state between frame transactions
-    localparam PXL_ALIGN_ST     = 3'd02;
-    localparam PXL_CAPTURE_ST   = 3'd03;
-    localparam ERR_CORRECT_ST   = 3'd04;
+    localparam SLEEP_ST         = 3'd0;
+    localparam IDLE_ST          = 3'd1; // IDLE state between frame transactions
+    localparam PXL_ALIGN_ST     = 3'd2;
+    localparam PXL_CAPTURE_ST   = 3'd3;
+    localparam ERR_CORRECT_ST   = 3'd4;
     localparam STATE_W          = 3;
     // -- DRC mode
     localparam SLEEP_MODE       = 2'd0;
@@ -53,7 +53,7 @@ module drc_cs_state_machine #(
     wire                    drc_str_mode;   // DRC in stream mode
     wire                    bwd_pxl_vsync;
     wire                    bwd_pxl_hsync;
-    wire                    bwd_pxl_data;
+    wire [DVP_DATA_W-1:0]   bwd_pxl_data;
     wire                    bwd_pxl_hsk;    // Backward pixel handshaking
     wire                    bwd_pred_hsync;
     wire                    fwd_hpxl_hsk;    // Forward half-pixel handshaking
@@ -89,7 +89,7 @@ module drc_cs_state_machine #(
     assign fwd_hpxl_vld     = int_hpxl_vld;    
     assign fwd_hpxl_hsk     = fwd_hpxl_vld & fwd_hpxl_rdy;
     assign {bwd_pxl_vsync, bwd_pxl_hsync, bwd_pxl_data} = bwd_pxl_info_dat;
-    assign bwd_pred_hsync   = ~|w_cnt_q; // Width counter == 0
+    assign bwd_pred_hsync   = (~|w_cnt_q) & (~pxl_ack_q); // (The first pixel in a row) & (The first half pixel in a entire pixel)
     assign w_cnt_wrap   = ~|(w_cnt_q^(img_width-1'b1));
     assign h_cnt_wrap   = ~|(h_cnt_q^(img_height-1'b1));
     assign drc_slp_mode = ~|(cam_rx_mode^SLEEP_MODE);

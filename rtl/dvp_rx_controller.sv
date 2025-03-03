@@ -115,6 +115,8 @@ module dvp_rx_controller #(
     // Interrupt and Trap
     wire                        int_dma_irq     [0:0];
     wire                        int_dma_trap    [0:0];
+    // PCLK Sync -> Pixel FIFO
+    wire                        pclk_sync;
     // Pixel FIFO -> DRC Control State
     wire    [PXL_INFO_W-1:0]    pxl_info_dat;
     wire                        pxl_info_vld;
@@ -130,7 +132,7 @@ module dvp_rx_controller #(
     wire                        proc_pxl_vld;
     wire                        proc_pxl_rdy;
     // Memory Aligner -> DMA
-    wire                        int_tid;    
+    wire [MST_ID_W-1:0]         int_tid;    
     wire                        int_tdest;
     wire [DMA_DATA_W-1:0]       int_tdata;
     wire                        int_tvalid;
@@ -339,7 +341,8 @@ module dvp_rx_controller #(
     // -- Memory Aligner
     drc_mem_aligner #(
         .I_PXL_W            (PROC_PXL_W),
-        .AXIS_DATA_W        (DMA_DATA_W)
+        .AXIS_DATA_W        (DMA_DATA_W),
+        .AXIS_TID_W         (MST_ID_W)
     ) ma (
         .aclk               (clk),
         .aresetn            (rst_n),
@@ -367,7 +370,7 @@ module dvp_rx_controller #(
         .DESC_QUEUE_TYPE    (),
         .SRC_IF_TYPE        ("AXIS"),   // Source: AXI-Stream
         .SRC_ADDR_W         (),
-        .SRC_TDEST_W        (),
+        .SRC_TDEST_W        (1),
         .ATX_SRC_DATA_W     (DMA_DATA_W),
         .DST_IF_TYPE        ("AXI4"),   // Destination: AXI4
         .DST_ADDR_W         (DMA_ADDR_W),
@@ -540,30 +543,34 @@ module dvp_rx_controller #(
     assign dma_irq  = int_dma_irq[0];
     assign dma_trap = int_dma_trap[0];
     // Flatten
-    assign flat_s_awid      = {s_awid[1],       s_awid[0]};
-    assign flat_s_awaddr    = {s_awaddr[1],     s_awaddr[0]};
-    assign flat_s_awburst   = {s_awburst[1],    s_awburst[0]};
-    assign flat_s_awlen     = {s_awlen[1],      s_awlen[0]};
-    assign flat_s_awvalid   = {s_awvalid[1],    s_awvalid[0]};
-    assign flat_s_awready   = {s_awready[1],    s_awready[0]};
-    assign flat_s_wdata     = {s_wdata[1],      s_wdata[0]};
-    assign flat_s_wlast     = {s_wlast[1],      s_wlast[0]};
-    assign flat_s_wvalid    = {s_wvalid[1],     s_wvalid[0]};
-    assign flat_s_wready    = {s_wready[1],     s_wready[0]};
-    assign flat_s_bid       = {s_bid[1],        s_bid[0]};
-    assign flat_s_bresp     = {s_bresp[1],      s_bresp[0]};
-    assign flat_s_bvalid    = {s_bvalid[1],     s_bvalid[0]};
-    assign flat_s_bready    = {s_bready[1],     s_bready[0]};
-    assign flat_s_arid      = {s_arid[1],       s_arid[0]};
-    assign flat_s_araddr    = {s_araddr[1],     s_araddr[0]};
-    assign flat_s_arburst   = {s_arburst[1],    s_arburst[0]};
-    assign flat_s_arlen     = {s_arlen[1],      s_arlen[0]};
-    assign flat_s_arvalid   = {s_arvalid[1],    s_arvalid[0]};
-    assign flat_s_arready   = {s_arready[1],    s_arready[0]};
-    assign flat_s_rid       = {s_rid[1],        s_rid[0]};
-    assign flat_s_rdata     = {s_rdata[1],      s_rdata[0]};
-    assign flat_s_rresp     = {s_rresp[1],      s_rresp[0]};
-    assign flat_s_rlast     = {s_rlast[1],      s_rlast[0]};
-    assign flat_s_rvalid    = {s_rvalid[1],     s_rvalid[0]};
-    assign flat_s_rready    = {s_rready[1],     s_rready[0]};
+    assign {s_awid[1],       s_awid[0]}     = flat_s_awid;
+    assign {s_awaddr[1],     s_awaddr[0]}   = flat_s_awaddr;
+    assign {s_awburst[1],    s_awburst[0]}  = flat_s_awburst;
+    assign {s_awlen[1],      s_awlen[0]}    = flat_s_awlen;
+    assign {s_awvalid[1],    s_awvalid[0]}  = flat_s_awvalid;
+    assign flat_s_awready                   = {s_awready[1],    s_awready[0]};
+
+    assign {s_wdata[1],      s_wdata[0]}    = flat_s_wdata;
+    assign {s_wlast[1],      s_wlast[0]}    = flat_s_wlast;
+    assign {s_wvalid[1],     s_wvalid[0]}   = flat_s_wvalid;
+    assign flat_s_wready                    = {s_wready[1],     s_wready[0]};
+    
+    assign flat_s_bid                       = {s_bid[1],        s_bid[0]};
+    assign flat_s_bresp                     = {s_bresp[1],      s_bresp[0]};
+    assign flat_s_bvalid                    = {s_bvalid[1],     s_bvalid[0]};
+    assign {s_bready[1],     s_bready[0]}   = flat_s_bready;
+    
+    assign {s_arid[1],       s_arid[0]}     = flat_s_arid;
+    assign {s_araddr[1],     s_araddr[0]}   = flat_s_araddr;
+    assign {s_arburst[1],    s_arburst[0]}  = flat_s_arburst;
+    assign {s_arlen[1],      s_arlen[0]}    = flat_s_arlen;
+    assign {s_arvalid[1],    s_arvalid[0]}  = flat_s_arvalid;
+    assign flat_s_arready                   = {s_arready[1],    s_arready[0]};
+
+    assign flat_s_rid                       = {s_rid[1],        s_rid[0]};
+    assign flat_s_rdata                     = {s_rdata[1],      s_rdata[0]};
+    assign flat_s_rresp                     = {s_rresp[1],      s_rresp[0]};
+    assign flat_s_rlast                     = {s_rlast[1],      s_rlast[0]};
+    assign flat_s_rvalid                    = {s_rvalid[1],     s_rvalid[0]};
+    assign {s_rready[1],     s_rready[0]}   = flat_s_rready;
 endmodule

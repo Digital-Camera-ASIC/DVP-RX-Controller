@@ -1,3 +1,11 @@
 ./../rtl/*.v
+./../rtl/*.sv
 ./../rtl/others/edgedet/*.v
 ./../rtl/others/fifo/*.v
+./../rtl/others/adapter/*.v
+./../rtl/others/arbiter/iwrr/*.v
+./../rtl/others/decoder/*.v
+./../rtl/others/interconnect/axi/*.v
+./../rtl/others/splitter/*.v
+./../rtl/others/dma/axi_dma/*.sv
+./../rtl/others/reorder/*.sv
